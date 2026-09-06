@@ -1,9 +1,27 @@
 name: offsec-m01
 
-# ISSUE-010 and ISSUE-011 add the attacker and target services. Keeping this
-# file as the network authority makes the isolation policy reviewable before
-# either workload is introduced.
-services: {}
+services:
+  attacker:
+    container_name: offsec-m01-attacker
+    build:
+      context: ./attacker
+    init: true
+    stdin_open: true
+    tty: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.5
+    networks:
+      - lab
 
 networks:
   lab:

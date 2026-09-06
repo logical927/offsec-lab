@@ -1,6 +1,0 @@
-services:
-  isolation-probe:
-    image: alpine:3.22
-    command: ["sleep", "300"]
-    networks:
-      - lab

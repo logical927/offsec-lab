@@ -805,7 +805,7 @@ target-m01
 Base：
 
 ```text
-Debian / Ubuntu系Linux
+Debian 12 (bookworm-slim)
 ```
 
 搭載ツール：
@@ -823,6 +823,9 @@ dnsutils
 
 Lab実行中にInternetからパッケージを取得する設計にはしない。
 
+実行ユーザーは非rootの `trainee`（UID/GID 1000）とする。Root filesystemは
+read-onlyとし、一時ファイル用に `/tmp` のみtmpfsとして書込み可能にする。
+
 ---
 
 # 33. Attacker Privileges
@@ -835,11 +838,11 @@ privileged: false
 
 とする。
 
-Linux capabilityについて必要性を検証し、
+Mission 01では全Linux capabilityを削除し、Host Discoveryに必要な
+`NET_RAW` のみ追加する。`no-new-privileges` を有効にし、Docker Socket、
+Host Network、Host directory mountは使用しない。
 
-必要最小限のみ追加する。
-
-Mission 01では通常のNmap Scanに必要な範囲を検証する。
+Resource上限はCPU 0.5、Memory 256MB、PID 128とする。
 
 ---
 
