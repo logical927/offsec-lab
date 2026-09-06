@@ -7,9 +7,9 @@ OffSec Lab is a local cybersecurity training platform for learning vulnerability
 ## Project Status
 
 The backend provides Mission, Challenge Answer, and Progress APIs backed by
-PostgreSQL. Mission 01 has an internal Docker network and a restricted attacker
-container with the required reconnaissance tools. Its target workload and the
-Lab Controller remain planned work.
+PostgreSQL. Mission 01 has an internal Docker network, a restricted attacker
+container, and an observable SSH/HTTP target for reconnaissance. The Lab
+Controller remains planned work.
 
 The v0.1 MVP is planned for a single local user and one reconnaissance mission.
 

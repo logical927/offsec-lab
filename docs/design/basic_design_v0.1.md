@@ -859,6 +859,11 @@ Mission 01 Targetでは、
 
 Targetは意図した情報だけをEnumeration可能とする。
 
+Targetは非rootユーザーで実行し、Root filesystemをread-onlyとする。
+全Linux capabilityを削除した上で、22/tcpおよび80/tcpのListenに必要な
+`NET_BIND_SERVICE` のみ追加する。Resource上限はCPU 0.25、Memory 128MB、
+PID 64とする。
+
 ---
 
 # 35. Target HTTP Service
@@ -891,6 +896,9 @@ Version Detection
 を目的として配置する。
 
 Mission 01ではCredential AttackやSSH Loginを行わない。
+
+Password、Public Key、Keyboard Interactiveによる認証を無効化する。
+SSH Host KeyはContainer起動時にtmpfsへ生成し、ImageやRepositoryへ保存しない。
 
 ---
 
