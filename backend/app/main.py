@@ -3,9 +3,14 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, status
 from fastapi.responses import JSONResponse
 
+from app.api.errors import mission_not_found_handler
+from app.api.v1 import router as api_v1_router
 from app.database import check_database_connection
+from app.services import MissionNotFoundError
 
 app = FastAPI(title="OffSec Lab API", version="0.1.0")
+app.include_router(api_v1_router)
+app.add_exception_handler(MissionNotFoundError, mission_not_found_handler)
 
 
 @app.get("/health", tags=["health"])
