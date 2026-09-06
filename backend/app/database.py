@@ -1,9 +1,16 @@
 import logging
 import os
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from functools import lru_cache
 
 import psycopg
 from sqlalchemy import URL
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +48,22 @@ class DatabaseSettings:
             port=self.port,
             database=self.database,
         )
+
+
+@lru_cache(maxsize=4)
+def _session_factory(
+    settings: DatabaseSettings,
+) -> async_sessionmaker[AsyncSession]:
+    engine = create_async_engine(settings.sqlalchemy_url(), pool_pre_ping=True)
+    return async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def get_database_session() -> AsyncIterator[AsyncSession]:
+    """Provide one SQLAlchemy session per API request."""
+    settings = DatabaseSettings.from_environment()
+    factory = _session_factory(settings)
+    async with factory() as session:
+        yield session
 
 
 async def check_database_connection() -> bool:
