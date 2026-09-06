@@ -38,6 +38,7 @@ def test_required_and_nullable_columns() -> None:
         assert columns["updated_at"].type.timezone is True
 
     assert Challenge.__table__.columns["mission_id"].nullable is False
+    assert Challenge.__table__.columns["accepted_answers"].nullable is True
 
 
 def test_database_constraints_are_declared() -> None:
