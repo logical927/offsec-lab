@@ -4,8 +4,24 @@ from fastapi.responses import JSONResponse
 from app.services import (
     ChallengeNotAnswerableError,
     ChallengeNotFoundError,
+    ChallengeLockedError,
     MissionNotFoundError,
 )
+
+
+async def challenge_locked_handler(
+    _request: Request,
+    _exc: ChallengeLockedError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={
+            "error": {
+                "code": "CHALLENGE_LOCKED",
+                "message": "Challenge is locked.",
+            }
+        },
+    )
 
 
 async def challenge_not_found_handler(

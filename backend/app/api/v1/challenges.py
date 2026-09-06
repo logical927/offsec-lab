@@ -19,4 +19,9 @@ async def answer_challenge(
     service: Annotated[ChallengeService, Depends(get_challenge_service)],
 ) -> ChallengeAnswerResponse:
     result = await service.check_answer(challenge_id, request.answer)
-    return ChallengeAnswerResponse(correct=result.correct)
+    return ChallengeAnswerResponse(
+        correct=result.correct,
+        status=result.status,
+        next_challenge_id=result.next_challenge_id,
+        mission_status=result.mission_status,
+    )
