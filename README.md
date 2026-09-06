@@ -6,7 +6,10 @@ OffSec Lab is a local cybersecurity training platform for learning vulnerability
 
 ## Project Status
 
-Issue 002 — Development Environment. The repository provides the minimal FastAPI and PostgreSQL management-plane development stack. Frontend, lab control, and challenge environments are not implemented yet.
+Issue 003 — FastAPI and PostgreSQL Foundation. The repository provides separate
+liveness and readiness endpoints for the minimal FastAPI and PostgreSQL
+management-plane development stack. Frontend, lab control, and challenge
+environments are not implemented yet.
 
 The v0.1 MVP is planned for a single local user and one reconnaissance mission.
 
@@ -23,7 +26,9 @@ The documented v0.1 architecture uses:
 
 These components will be implemented in later issues. See the basic design and accepted ADRs below.
 
-ADR-001 still specifies a WSL2-hosted backend for future Docker lab control. Issue 002's containerized development backend does not control Docker and receives no Docker socket. The execution model must be reconciled before lab-control work begins.
+ADR-002 supersedes ADR-001 and establishes the containerized management plane.
+The development backend does not control Docker and receives no Docker socket;
+future lab-control work requires a separate approved design.
 
 ## Requirements
 
@@ -38,13 +43,22 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Verify that FastAPI can query PostgreSQL:
+Verify FastAPI liveness:
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-A healthy stack returns `{"status":"ok","database":"connected"}`. Stop it with:
+This returns `{"status":"ok"}` whenever the FastAPI process is running and does not
+depend on PostgreSQL. Verify application readiness, including PostgreSQL connectivity:
+
+```bash
+curl http://localhost:8000/ready
+```
+
+A ready stack returns `{"status":"ready","database":"connected"}`. If PostgreSQL
+is unavailable, `/health` remains HTTP 200 while `/ready` returns HTTP 503 with
+`{"status":"not_ready","database":"disconnected"}`. Stop the stack with:
 
 ```bash
 docker compose down
@@ -79,10 +93,12 @@ Application and lab containers must not receive Docker socket mounts. Lab contai
 ## Documentation
 
 - [Project proposal](docs/企画書.md)
-- [MVP requirements v0.1](<docs/OffSec Lab v0.1 MVP要件定義書.md>)
+- [MVP requirements v0.1](<docs/requirements/OffSec Lab v0.1 MVP要件定義書.md>)
 - [Basic design v0.1](docs/design/basic_design_v0.1.md)
 - [Architecture decision records](docs/design/adr/)
 - [Work breakdown structure](docs/OffSec_Lab_v0.1_WBS.xlsx)
 - [Planning](docs/planning/), [security](docs/security/), and [testing](docs/testing/) directories for future documentation.
 
-The proposal and requirements remain at their existing paths under `docs/`. The requirements path referenced in AGENTS.md, `docs/requirements/mvp_requirements_v0.1.md`, is not present; use the existing MVP requirements linked above.
+The requirements path referenced in AGENTS.md,
+`docs/requirements/mvp_requirements_v0.1.md`, is not present; use the existing
+MVP requirements linked above.
