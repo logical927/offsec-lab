@@ -1,0 +1,13 @@
+name: offsec-m01
+
+# ISSUE-010 and ISSUE-011 add the attacker and target services. Keeping this
+# file as the network authority makes the isolation policy reviewable before
+# either workload is introduced.
+services: {}
+
+networks:
+  lab:
+    name: offsec-m01-net
+    driver: bridge
+    internal: true
+    attachable: false
