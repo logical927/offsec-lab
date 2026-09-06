@@ -8,7 +8,6 @@ import pytest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = REPOSITORY_ROOT / "challenges" / "m01-recon" / "compose.lab.yml"
-PROBE_FILE = REPOSITORY_ROOT / "tests" / "fixtures" / "m01-network-probe.compose.yml"
 
 
 @pytest.fixture(scope="module")
@@ -23,8 +22,6 @@ def rendered_compose() -> dict[str, object]:
             "compose",
             "-f",
             str(COMPOSE_FILE),
-            "-f",
-            str(PROBE_FILE),
             "config",
             "--format",
             "json",
@@ -61,7 +58,7 @@ def test_mission_01_has_no_published_ports(
         assert isinstance(service, dict)
         assert "ports" not in service
 
-    assert set(services) == {"isolation-probe"}
+    assert set(services) == {"attacker"}
 
 
 def test_mission_01_has_no_high_risk_container_settings(

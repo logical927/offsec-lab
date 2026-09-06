@@ -7,8 +7,9 @@ OffSec Lab is a local cybersecurity training platform for learning vulnerability
 ## Project Status
 
 The backend provides Mission, Challenge Answer, and Progress APIs backed by
-PostgreSQL. Mission 01 now has a declarative internal Docker network; its
-attacker and target workloads and the Lab Controller remain planned work.
+PostgreSQL. Mission 01 has an internal Docker network and a restricted attacker
+container with the required reconnaissance tools. Its target workload and the
+Lab Controller remain planned work.
 
 The v0.1 MVP is planned for a single local user and one reconnaissance mission.
 
@@ -106,9 +107,9 @@ Validate the Mission 01 network definition from the repository root:
 docker compose -f challenges/m01-recon/compose.lab.yml config --quiet
 ```
 
-Mission 01 uses the dedicated internal bridge network `offsec-m01-net`. Future
-attacker and target services must attach to this network, and the target must
-not publish host ports.
+Mission 01 uses the dedicated internal bridge network `offsec-m01-net`. The
+attacker service is attached to it; the future target must use the same network
+without publishing host ports.
 
 ## Security Notice
 
