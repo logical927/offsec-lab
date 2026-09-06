@@ -6,10 +6,9 @@ OffSec Lab is a local cybersecurity training platform for learning vulnerability
 
 ## Project Status
 
-Issue 005 — Mission / Challenge Data Model. The repository provides separate
-liveness and readiness endpoints plus the initial SQLAlchemy domain schema and
-Alembic migrations for missions and challenges. Frontend, APIs beyond health,
-lab control, and challenge environments are not implemented yet.
+The backend provides Mission, Challenge Answer, and Progress APIs backed by
+PostgreSQL. Mission 01 now has a declarative internal Docker network; its
+attacker and target workloads and the Lab Controller remain planned work.
 
 The v0.1 MVP is planned for a single local user and one reconnaissance mission.
 
@@ -100,6 +99,16 @@ alembic upgrade head
 alembic downgrade base
 alembic upgrade head
 ```
+
+Validate the Mission 01 network definition from the repository root:
+
+```bash
+docker compose -f challenges/m01-recon/compose.lab.yml config --quiet
+```
+
+Mission 01 uses the dedicated internal bridge network `offsec-m01-net`. Future
+attacker and target services must attach to this network, and the target must
+not publish host ports.
 
 ## Security Notice
 
