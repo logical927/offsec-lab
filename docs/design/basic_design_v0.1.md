@@ -1098,9 +1098,14 @@ Response：
 {
   "correct": true,
   "status": "COMPLETED",
-  "next_challenge_id": 3
+  "next_challenge_id": 3,
+  "mission_status": "IN_PROGRESS"
 }
 ```
+
+`status` は回答対象Challengeの更新後状態、`next_challenge_id` は次に
+`AVAILABLE` となるChallengeを表す。全必須Challenge完了時は
+`mission_status` を `COMPLETED` とする。
 
 ---
 
@@ -1111,6 +1116,36 @@ GET /api/v1/progress
 ```
 
 Mission / Challenge進捗を返す。
+
+Response例：
+
+```json
+{
+  "missions": [
+    {
+      "mission_id": 1,
+      "status": "IN_PROGRESS",
+      "challenges": [
+        {
+          "challenge_id": 1,
+          "status": "COMPLETED"
+        },
+        {
+          "challenge_id": 2,
+          "status": "AVAILABLE"
+        },
+        {
+          "challenge_id": 3,
+          "status": "LOCKED"
+        }
+      ]
+    }
+  ]
+}
+```
+
+正解時の進捗更新はMission単位のTransactionとして処理し、同時回答でも
+Challengeの順次解放が崩れないようMission行をLockする。
 
 ---
 

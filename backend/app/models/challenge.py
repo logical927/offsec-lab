@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 class Challenge(Base):
     __tablename__ = "challenges"
     __table_args__ = (
+        UniqueConstraint("mission_id", "id", name="uq_challenges_mission_id_id"),
         UniqueConstraint(
             "mission_id", "slug", name="uq_challenges_mission_id_slug"
         ),

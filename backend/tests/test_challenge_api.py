@@ -7,6 +7,9 @@ from app.services import (
     ChallengeAnswerResult,
     ChallengeNotAnswerableError,
     ChallengeNotFoundError,
+    ChallengeLockedError,
+    ChallengeProgressStatus,
+    MissionProgressStatus,
 )
 
 client = TestClient(app)
@@ -22,7 +25,19 @@ class FakeChallengeService:
             raise ChallengeNotFoundError
         if challenge_id == 409:
             raise ChallengeNotAnswerableError
-        return ChallengeAnswerResult(correct=submitted_answer.casefold() == "correct")
+        if challenge_id == 423:
+            raise ChallengeLockedError
+        correct = submitted_answer.casefold() == "correct"
+        return ChallengeAnswerResult(
+            correct=correct,
+            status=(
+                ChallengeProgressStatus.COMPLETED
+                if correct
+                else ChallengeProgressStatus.AVAILABLE
+            ),
+            next_challenge_id=2 if correct else None,
+            mission_status=MissionProgressStatus.IN_PROGRESS,
+        )
 
 
 def override_challenge_service() -> FakeChallengeService:
@@ -44,7 +59,12 @@ def test_correct_answer_returns_true_without_internal_values() -> None:
     response = post_answer(1, "correct")
 
     assert response.status_code == 200
-    assert response.json() == {"correct": True}
+    assert response.json() == {
+        "correct": True,
+        "status": "COMPLETED",
+        "next_challenge_id": 2,
+        "mission_status": "IN_PROGRESS",
+    }
     assert "accepted_answers" not in response.text
 
 
@@ -52,7 +72,12 @@ def test_incorrect_answer_returns_false() -> None:
     response = post_answer(1, "incorrect")
 
     assert response.status_code == 200
-    assert response.json() == {"correct": False}
+    assert response.json() == {
+        "correct": False,
+        "status": "AVAILABLE",
+        "next_challenge_id": None,
+        "mission_status": "IN_PROGRESS",
+    }
 
 
 def test_unknown_challenge_returns_structured_not_found_error() -> None:
@@ -75,6 +100,18 @@ def test_non_answerable_challenge_returns_structured_conflict() -> None:
         "error": {
             "code": "CHALLENGE_NOT_ANSWERABLE",
             "message": "Challenge does not accept answers.",
+        }
+    }
+
+
+def test_locked_challenge_returns_structured_conflict() -> None:
+    response = post_answer(423, "correct")
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "error": {
+            "code": "CHALLENGE_LOCKED",
+            "message": "Challenge is locked.",
         }
     }
 
