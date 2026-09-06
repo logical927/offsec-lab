@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 
 import psycopg
+from sqlalchemy import URL
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,17 @@ class DatabaseSettings:
             password=values["POSTGRES_PASSWORD"],
             host=values["POSTGRES_HOST"],
             port=int(os.getenv("POSTGRES_PORT", "5432")),
+        )
+
+    def sqlalchemy_url(self) -> URL:
+        """Build a safely escaped URL without serializing credentials to logs."""
+        return URL.create(
+            drivername="postgresql+psycopg",
+            username=self.user,
+            password=self.password,
+            host=self.host,
+            port=self.port,
+            database=self.database,
         )
 
 

@@ -6,10 +6,10 @@ OffSec Lab is a local cybersecurity training platform for learning vulnerability
 
 ## Project Status
 
-Issue 003 — FastAPI and PostgreSQL Foundation. The repository provides separate
-liveness and readiness endpoints for the minimal FastAPI and PostgreSQL
-management-plane development stack. Frontend, lab control, and challenge
-environments are not implemented yet.
+Issue 005 — Mission / Challenge Data Model. The repository provides separate
+liveness and readiness endpoints plus the initial SQLAlchemy domain schema and
+Alembic migrations for missions and challenges. Frontend, APIs beyond health,
+lab control, and challenge environments are not implemented yet.
 
 The v0.1 MVP is planned for a single local user and one reconnaissance mission.
 
@@ -64,6 +64,15 @@ is unavailable, `/health` remains HTTP 200 while `/ready` returns HTTP 503 with
 docker compose down
 ```
 
+Apply database migrations from the backend container after the stack starts:
+
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+Alembic reads the same `POSTGRES_*` environment variables as the application;
+the configuration does not contain database credentials.
+
 The PostgreSQL service is reachable only from the Compose network; it does not publish port 5432 to the host. The backend API is bound to `127.0.0.1` on the host.
 
 ## Development
@@ -82,6 +91,14 @@ Run the backend API tests from `backend/` after installing `requirements-dev.txt
 ```bash
 python -m pip install -r requirements-dev.txt
 python -m pytest
+```
+
+Run migrations locally from `backend/` with the same `POSTGRES_*` variables set:
+
+```bash
+alembic upgrade head
+alembic downgrade base
+alembic upgrade head
 ```
 
 ## Security Notice
