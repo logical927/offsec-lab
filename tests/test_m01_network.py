@@ -58,7 +58,7 @@ def test_mission_01_has_no_published_ports(
         assert isinstance(service, dict)
         assert "ports" not in service
 
-    assert set(services) == {"attacker"}
+    assert set(services) == {"attacker", "target"}
 
 
 def test_mission_01_has_no_high_risk_container_settings(

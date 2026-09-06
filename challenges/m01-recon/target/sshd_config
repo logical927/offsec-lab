@@ -1,0 +1,23 @@
+Port 22
+ListenAddress 0.0.0.0
+HostKey /tmp/offsec-ssh/ssh_host_ed25519_key
+PidFile /tmp/sshd.pid
+
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication no
+PermitEmptyPasswords no
+UsePAM no
+UseDNS no
+
+AllowTcpForwarding no
+AllowAgentForwarding no
+X11Forwarding no
+PermitTunnel no
+GatewayPorts no
+
+PrintMotd no
+PrintLastLog no
+LogLevel VERBOSE
+VersionAddendum OffSecLab-M01
