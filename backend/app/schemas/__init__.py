@@ -1,3 +1,4 @@
+from app.schemas.challenge import ChallengeAnswerRequest, ChallengeAnswerResponse
 from app.schemas.mission import (
     ChallengeSummaryResponse,
     MissionDetailResponse,
@@ -5,6 +6,8 @@ from app.schemas.mission import (
 )
 
 __all__ = [
+    "ChallengeAnswerRequest",
+    "ChallengeAnswerResponse",
     "ChallengeSummaryResponse",
     "MissionDetailResponse",
     "MissionSummaryResponse",

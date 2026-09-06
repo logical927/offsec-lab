@@ -32,6 +32,7 @@ def challenge(*, challenge_id: int = 1, mission_id: int = 1) -> Challenge:
         slug=f"challenge-{challenge_id}",
         title="Host Discovery",
         description="Confirm that the target is reachable.",
+        accepted_answers=["internal-answer"],
         sort_order=challenge_id,
         is_active=True,
         created_at=timestamp,
