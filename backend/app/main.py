@@ -8,6 +8,8 @@ from app.api.errors import (
     challenge_locked_handler,
     challenge_not_found_handler,
     mission_not_found_handler,
+    lab_not_found_handler,
+    lab_start_failed_handler,
 )
 from app.api.v1 import router as api_v1_router
 from app.database import check_database_connection
@@ -16,11 +18,15 @@ from app.services import (
     ChallengeNotAnswerableError,
     ChallengeNotFoundError,
     MissionNotFoundError,
+    LabNotFoundError,
+    LabStartFailedError,
 )
 
 app = FastAPI(title="OffSec Lab API", version="0.1.0")
 app.include_router(api_v1_router)
 app.add_exception_handler(MissionNotFoundError, mission_not_found_handler)
+app.add_exception_handler(LabNotFoundError, lab_not_found_handler)
+app.add_exception_handler(LabStartFailedError, lab_start_failed_handler)
 app.add_exception_handler(ChallengeNotFoundError, challenge_not_found_handler)
 app.add_exception_handler(ChallengeLockedError, challenge_locked_handler)
 app.add_exception_handler(

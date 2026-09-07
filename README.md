@@ -8,8 +8,8 @@ OffSec Lab is a local cybersecurity training platform for learning vulnerability
 
 The backend provides Mission, Challenge Answer, and Progress APIs backed by
 PostgreSQL. Mission 01 has an internal Docker network, a restricted attacker
-container, and an observable SSH/HTTP target for reconnaissance. The Lab
-Controller remains planned work.
+container, and an observable SSH/HTTP target for reconnaissance. The backend
+Lab Controller can start Mission 01 through its allowlisted API.
 
 The v0.1 MVP is planned for a single local user and one reconnaissance mission.
 
@@ -21,14 +21,14 @@ The documented v0.1 architecture uses:
 - Backend: Python and FastAPI. Issue 002 runs it in the development Compose stack.
 - Database: PostgreSQL.
 - Labs: Docker and Docker Compose, with dedicated internal lab networks.
-- Lab control: the host backend invokes the Docker CLI through a Lab Runner using predefined mission configurations.
+- Lab control: the containerized backend invokes Docker Compose through a Lab Runner using predefined mission configurations.
 - Lab access: an external WSL2 terminal.
 
 These components will be implemented in later issues. See the basic design and accepted ADRs below.
 
 ADR-002 supersedes ADR-001 and establishes the containerized management plane.
-The development backend does not control Docker and receives no Docker socket;
-future lab-control work requires a separate approved design.
+ADR-006 documents a security-sensitive local MVP exception that mounts the
+Docker socket only into the backend. Challenge containers never receive it.
 
 ## Requirements
 
@@ -37,6 +37,10 @@ The planned development environment is Windows 11, WSL2 with Ubuntu, and Docker 
 ## Setup
 
 Copy `.env.example` to `.env` and replace the development-only PostgreSQL password before starting the stack. Local `.env` files must remain outside Git.
+
+In WSL2, set `DOCKER_GID` in `.env` to the numeric group owner reported by
+`stat -c '%g' /var/run/docker.sock`. This lets the non-root backend process use
+the socket without making it world-writable.
 
 ```bash
 cp .env.example .env
@@ -63,6 +67,16 @@ is unavailable, `/health` remains HTTP 200 while `/ready` returns HTTP 503 with
 ```bash
 docker compose down
 ```
+
+Start Mission 01 through the application:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/labs/1/start
+```
+
+The response reports `status: "running"` and whether the complete healthy lab
+was already running. Only registered Mission IDs are accepted. The operation
+has a 120-second execution timeout.
 
 Apply database migrations from the backend container after the stack starts:
 
@@ -115,7 +129,11 @@ without publishing host ports.
 
 OffSec Lab will contain intentionally vulnerable lab environments. Vulnerable targets must not be exposed directly to the Internet. Use the platform only in the isolated local environment defined by the project design.
 
-Application and lab containers must not receive Docker socket mounts. Lab containers must not use privileged mode, host networking, or unnecessary host filesystem mounts. Never commit real credentials or secrets; challenge credentials must be synthetic.
+Lab containers must not receive Docker socket mounts or use privileged mode,
+host networking, or unnecessary host filesystem mounts. The backend-only socket
+exception is documented in ADR-006 and grants host-equivalent Docker authority;
+keep the API bound to localhost. Never commit real credentials or secrets;
+challenge credentials must be synthetic.
 
 ## Documentation
 

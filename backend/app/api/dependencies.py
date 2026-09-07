@@ -10,6 +10,11 @@ from app.repositories import (
     ProgressRepository,
 )
 from app.services import ChallengeService, MissionService, ProgressService
+from app.lab import DockerComposeLabRunner
+from app.services import LabService
+
+
+_lab_runner = DockerComposeLabRunner()
 
 
 def get_progress_service(
@@ -37,3 +42,7 @@ def get_mission_service(
     session: Annotated[AsyncSession, Depends(get_database_session)],
 ) -> MissionService:
     return MissionService(MissionRepository(session))
+
+
+def get_lab_service() -> LabService:
+    return LabService(_lab_runner)

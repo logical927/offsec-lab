@@ -27,7 +27,7 @@ OffSec Lab v0.1では以下を基本方針とする。
 3. 脆弱なTargetはDocker内部へ隔離する
 4. TargetのPortはHostへ公開しない
 5. AttackerからのみTargetへアクセスさせる
-6. Docker SocketをApplication ContainerへMountしない
+6. Docker Socketは原則Application ContainerへMountしない（Backendのv0.1例外はADR-006）
 7. Docker操作は定義済みMissionのみ許可する
 8. Challenge追加を容易にする
 9. MVPではMicroservices化しない
@@ -446,9 +446,9 @@ app/
 
 ## 採用方式
 
-FastAPI Backendは **WSL2 Host側で実行する**。
-
-BackendからDocker CLIを利用してMission用Labを操作する。
+FastAPI BackendはADR-002に従いContainerとして実行する。ISSUE-012では、
+定義済みMissionをDocker CLIで起動するため、ADR-006で承認したv0.1限定の
+Docker Socket例外を使用する。
 
 ```text
 FastAPI
@@ -468,9 +468,11 @@ Mission Compose
 
 ---
 
-# 17. Docker Socketを使用しない理由
+# 17. Docker Socket Access
 
-以下の構成は採用しない。
+原則としてApplication ContainerへDocker SocketをMountしない。ただし、
+Container化したBackendからLab Startを実現する最小のlocal-only MVP方式として、
+BackendだけはADR-006で明示した例外を使用する。
 
 ```text
 Backend Container
@@ -482,9 +484,10 @@ Backend Container
 Docker Engine
 ```
 
-Docker Socketへのアクセス権を持つContainerは、実質的にHost上で強い権限を取得できる可能性がある。
-
-意図的に脆弱なシステムを扱うOffSec Labでは、この構成を避ける。
+Docker Socketへのアクセス権を持つContainerは、実質的にHost上で強い権限を
+取得できる。このためBackendはlocalhost限定、非root、非privilegedとし、
+Mission Registryから固定したCompose操作のみをargument arrayとtimeout付きで
+実行する。Attacker / Targetを含むChallenge ContainerへのMountは禁止する。
 
 ---
 
@@ -1674,7 +1677,9 @@ Target Host Port非公開
 
 Target Internet非接続
 
-Docker Socket非Mount
+Challenge ContainerへのDocker Socket非Mount
+
+Backend Socket例外がADR-006の制約内
 
 privileged=false
 
@@ -1882,7 +1887,7 @@ Execution Environment
 Windows 11 + WSL2
 
 Docker Control
-WSL2上のBackend → Docker CLI
+Containerized Backend → Docker CLI（ADR-006）
 
 Lab Isolation
 Docker internal network
@@ -1894,7 +1899,7 @@ Target Exposure
 Host Port公開なし
 
 Docker Socket
-Application ContainerへMount禁止
+Backendのみv0.1例外、Challenge ContainerへMount禁止
 
 Users
 Single User

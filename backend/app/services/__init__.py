@@ -9,6 +9,12 @@ from app.services.mission_service import (
     MissionNotFoundError,
     MissionService,
 )
+from app.services.lab_service import (
+    LabNotFoundError,
+    LabService,
+    LabStartFailedError,
+    LabStartResult,
+)
 from app.services.progress_service import (
     ChallengeLockedError,
     ChallengeProgressSnapshot,
@@ -32,6 +38,10 @@ __all__ = [
     "MissionService",
     "MissionProgressSnapshot",
     "MissionProgressStatus",
+    "LabNotFoundError",
+    "LabService",
+    "LabStartFailedError",
+    "LabStartResult",
     "ProgressService",
     "ProgressTransition",
 ]
