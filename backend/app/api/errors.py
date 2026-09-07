@@ -7,7 +7,9 @@ from app.services import (
     ChallengeLockedError,
     MissionNotFoundError,
     LabNotFoundError,
+    LabResetFailedError,
     LabStartFailedError,
+    LabStopFailedError,
 )
 
 
@@ -36,6 +38,36 @@ async def lab_start_failed_handler(
             "error": {
                 "code": "LAB_START_FAILED",
                 "message": "Failed to start the lab.",
+            }
+        },
+    )
+
+
+async def lab_stop_failed_handler(
+    _request: Request,
+    _exc: LabStopFailedError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "error": {
+                "code": "LAB_STOP_FAILED",
+                "message": "Failed to stop the lab.",
+            }
+        },
+    )
+
+
+async def lab_reset_failed_handler(
+    _request: Request,
+    _exc: LabResetFailedError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "error": {
+                "code": "LAB_RESET_FAILED",
+                "message": "Failed to reset the lab.",
             }
         },
     )

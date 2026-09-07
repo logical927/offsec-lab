@@ -2,8 +2,10 @@ import asyncio
 from pathlib import Path
 from typing import Sequence
 
-from app.lab import DockerComposeLabRunner, LabDefinition
-from app.lab.runner import CommandResult
+import pytest
+
+from app.lab import DockerCommandError, DockerComposeLabRunner, LabDefinition
+from app.lab.runner import AsyncSubprocessExecutor, CommandResult
 
 
 class RecordingExecutor:
@@ -109,3 +111,142 @@ def test_runner_does_not_recreate_a_healthy_running_lab() -> None:
         "inspect",
         "offsec-m01-net",
     )
+
+
+def test_runner_stops_running_services_with_fixed_arguments() -> None:
+    executor = RecordingExecutor(
+        [
+            CommandResult(0, "attacker\ntarget\n", ""),
+            CommandResult(0, "", ""),
+        ]
+    )
+    runner = DockerComposeLabRunner(executor, timeout_seconds=45)
+
+    already_stopped = asyncio.run(runner.stop(definition()))
+
+    assert already_stopped is False
+    assert executor.calls[1] == (
+        (
+            "docker",
+            "compose",
+            "--project-directory",
+            "/workspace/challenges/m01-recon",
+            "--file",
+            "/workspace/challenges/m01-recon/compose.lab.yml",
+            "--project-name",
+            "offsec-m01",
+            "stop",
+        ),
+        45,
+    )
+
+
+def test_runner_repeated_stop_is_idempotent() -> None:
+    executor = RecordingExecutor([CommandResult(0, "", "")])
+    runner = DockerComposeLabRunner(executor)
+
+    already_stopped = asyncio.run(runner.stop(definition()))
+
+    assert already_stopped is True
+    assert len(executor.calls) == 1
+    assert executor.calls[0][0][-4:] == (
+        "ps",
+        "--status",
+        "running",
+        "--services",
+    )
+
+
+def test_runner_reset_uses_scoped_destroy_and_recreate_commands() -> None:
+    executor = RecordingExecutor(
+        [CommandResult(0, "", ""), CommandResult(0, "", "")]
+    )
+    runner = DockerComposeLabRunner(executor, timeout_seconds=45)
+    prefix = (
+        "docker",
+        "compose",
+        "--project-directory",
+        "/workspace/challenges/m01-recon",
+        "--file",
+        "/workspace/challenges/m01-recon/compose.lab.yml",
+        "--project-name",
+        "offsec-m01",
+    )
+
+    asyncio.run(runner.reset(definition()))
+
+    assert executor.calls == [
+        (prefix + ("down", "--volumes"), 45),
+        (
+            prefix
+            + (
+                "up",
+                "-d",
+                "--force-recreate",
+                "--wait",
+                "--wait-timeout",
+                "35",
+            ),
+            45,
+        ),
+    ]
+
+
+class TimeoutProcess:
+    returncode = None
+
+    def __init__(self) -> None:
+        self.killed = False
+        self.communicate_calls = 0
+
+    async def communicate(self):
+        self.communicate_calls += 1
+        if self.communicate_calls == 1:
+            await asyncio.Future()
+        return b"", b""
+
+    def kill(self) -> None:
+        self.killed = True
+
+
+def test_subprocess_executor_uses_argument_array_and_sanitizes_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process = TimeoutProcess()
+    captured: dict[str, object] = {}
+
+    async def fake_create_subprocess_exec(*arguments: str, **kwargs: object):
+        captured["arguments"] = arguments
+        captured["kwargs"] = kwargs
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    with pytest.raises(DockerCommandError, match="timed out"):
+        asyncio.run(
+            AsyncSubprocessExecutor().run(("docker", "compose", "stop"), 0.01)
+        )
+
+    assert captured["arguments"] == ("docker", "compose", "stop")
+    assert "shell" not in captured["kwargs"]
+    assert process.killed is True
+
+
+def test_subprocess_executor_sanitizes_nonzero_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailedProcess:
+        returncode = 1
+
+        async def communicate(self):
+            return b"", b"sensitive docker daemon detail"
+
+    async def fake_create_subprocess_exec(*_arguments: str, **_kwargs: object):
+        return FailedProcess()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    with pytest.raises(DockerCommandError) as error:
+        asyncio.run(AsyncSubprocessExecutor().run(("docker", "compose", "stop"), 1))
+
+    assert "sensitive docker daemon detail" not in str(error.value)

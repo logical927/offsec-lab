@@ -4,7 +4,7 @@ from app.schemas.mission import (
     MissionDetailResponse,
     MissionSummaryResponse,
 )
-from app.schemas.lab import LabStartResponse
+from app.schemas.lab import LabResetResponse, LabStartResponse, LabStopResponse
 from app.schemas.progress import (
     ChallengeProgressResponse,
     MissionProgressResponse,
@@ -19,6 +19,8 @@ __all__ = [
     "MissionDetailResponse",
     "MissionSummaryResponse",
     "LabStartResponse",
+    "LabStopResponse",
+    "LabResetResponse",
     "MissionProgressResponse",
     "ProgressResponse",
 ]

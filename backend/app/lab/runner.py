@@ -56,6 +56,12 @@ class LabRunner(Protocol):
     async def start(self, definition: LabDefinition) -> bool:
         """Start the lab and return whether it was already running."""
 
+    async def stop(self, definition: LabDefinition) -> bool:
+        """Stop the lab and return whether it was already stopped."""
+
+    async def reset(self, definition: LabDefinition) -> None:
+        """Destroy and recreate the lab in a running state."""
+
 
 class DockerComposeLabRunner:
     def __init__(
@@ -83,17 +89,29 @@ class DockerComposeLabRunner:
             )
             return False
 
+    async def stop(self, definition: LabDefinition) -> bool:
+        async with self._lock:
+            if not await self._has_running_services(definition):
+                return True
+
+            await self._run_compose(definition, "stop")
+            return False
+
+    async def reset(self, definition: LabDefinition) -> None:
+        async with self._lock:
+            await self._run_compose(definition, "down", "--volumes")
+            await self._run_compose(
+                definition,
+                "up",
+                "-d",
+                "--force-recreate",
+                "--wait",
+                "--wait-timeout",
+                str(max(1, int(self._timeout_seconds) - 10)),
+            )
+
     async def _is_running(self, definition: LabDefinition) -> bool:
-        result = await self._run_compose(
-            definition,
-            "ps",
-            "--status",
-            "running",
-            "--services",
-        )
-        running_services = {
-            line.strip() for line in result.stdout.splitlines() if line.strip()
-        }
+        running_services = await self._running_services(definition)
         if not definition.services.issubset(running_services):
             return False
 
@@ -115,6 +133,21 @@ class DockerComposeLabRunner:
             self._timeout_seconds,
         )
         return True
+
+    async def _has_running_services(self, definition: LabDefinition) -> bool:
+        return bool(await self._running_services(definition))
+
+    async def _running_services(self, definition: LabDefinition) -> set[str]:
+        result = await self._run_compose(
+            definition,
+            "ps",
+            "--status",
+            "running",
+            "--services",
+        )
+        return {
+            line.strip() for line in result.stdout.splitlines() if line.strip()
+        }
 
     async def _run_compose(
         self,
