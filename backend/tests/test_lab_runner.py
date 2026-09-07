@@ -4,7 +4,12 @@ from typing import Sequence
 
 import pytest
 
-from app.lab import DockerCommandError, DockerComposeLabRunner, LabDefinition
+from app.lab import (
+    DockerCommandError,
+    DockerComposeLabRunner,
+    LabDefinition,
+    LabState,
+)
 from app.lab.runner import AsyncSubprocessExecutor, CommandResult
 
 
@@ -190,6 +195,99 @@ def test_runner_reset_uses_scoped_destroy_and_recreate_commands() -> None:
             45,
         ),
     ]
+
+
+def test_runner_status_reports_stopped_when_no_services_are_running() -> None:
+    executor = RecordingExecutor([CommandResult(0, "", "")])
+
+    result = asyncio.run(DockerComposeLabRunner(executor).status(definition()))
+
+    assert result.state is LabState.STOPPED
+    assert result.target_ip is None
+
+
+def test_runner_status_reports_running_with_internal_target_ip() -> None:
+    executor = RecordingExecutor(
+        [
+            CommandResult(0, "attacker\ntarget\n", ""),
+            CommandResult(0, "healthy\n", ""),
+            CommandResult(0, "[]", ""),
+            CommandResult(0, "172.20.0.3\n", ""),
+        ]
+    )
+
+    result = asyncio.run(DockerComposeLabRunner(executor).status(definition()))
+
+    assert result.state is LabState.RUNNING
+    assert result.target_ip == "172.20.0.3"
+    assert executor.calls[-1][0] == (
+        "docker",
+        "inspect",
+        "--format",
+        (
+            '{{with index .NetworkSettings.Networks "offsec-m01-net"}}'
+            "{{.IPAddress}}{{end}}"
+        ),
+        "target-m01",
+    )
+
+
+def test_runner_status_reports_starting_while_target_health_initializes() -> None:
+    executor = RecordingExecutor(
+        [
+            CommandResult(0, "attacker\ntarget\n", ""),
+            CommandResult(0, "starting\n", ""),
+        ]
+    )
+
+    result = asyncio.run(DockerComposeLabRunner(executor).status(definition()))
+
+    assert result.state is LabState.STARTING
+    assert result.target_ip is None
+
+
+def test_runner_status_rechecks_docker_after_observed_starting_state() -> None:
+    executor = RecordingExecutor(
+        [
+            CommandResult(0, "attacker\ntarget\n", ""),
+            CommandResult(0, "starting\n", ""),
+            CommandResult(0, "attacker\ntarget\n", ""),
+            CommandResult(0, "healthy\n", ""),
+            CommandResult(0, "[]", ""),
+            CommandResult(0, "172.20.0.3\n", ""),
+        ]
+    )
+    runner = DockerComposeLabRunner(executor)
+
+    first = asyncio.run(runner.status(definition()))
+    second = asyncio.run(runner.status(definition()))
+
+    assert first.state is LabState.STARTING
+    assert second.state is LabState.RUNNING
+    assert second.target_ip == "172.20.0.3"
+
+
+def test_runner_status_reports_error_for_partial_lab() -> None:
+    executor = RecordingExecutor([CommandResult(0, "attacker\n", "")])
+
+    result = asyncio.run(DockerComposeLabRunner(executor).status(definition()))
+
+    assert result.state is LabState.ERROR
+    assert result.target_ip is None
+
+
+@pytest.mark.parametrize("state", [LabState.STARTING, LabState.STOPPING])
+def test_runner_status_returns_remembered_transitional_state(
+    state: LabState,
+) -> None:
+    executor = RecordingExecutor([])
+    runner = DockerComposeLabRunner(executor)
+    runner._operation_states[1] = state
+
+    result = asyncio.run(runner.status(definition()))
+
+    assert result.state is state
+    assert executor.calls == []
 
 
 class TimeoutProcess:

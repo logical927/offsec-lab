@@ -2,7 +2,12 @@ import asyncio
 
 import pytest
 
-from app.lab import DockerCommandError, LabDefinition
+from app.lab import (
+    DockerCommandError,
+    LabDefinition,
+    LabRuntimeStatus,
+    LabState,
+)
 from app.services import (
     LabNotFoundError,
     LabResetFailedError,
@@ -19,10 +24,12 @@ class FakeLabRunner:
         already_running: bool = False,
         already_stopped: bool = False,
         error: Exception | None = None,
+        runtime_status: LabRuntimeStatus | None = None,
     ) -> None:
         self.already_running = already_running
         self.already_stopped = already_stopped
         self.error = error
+        self.runtime_status = runtime_status or LabRuntimeStatus(LabState.STOPPED)
         self.definition: LabDefinition | None = None
         self.operation: str | None = None
 
@@ -45,6 +52,13 @@ class FakeLabRunner:
         self.operation = "reset"
         if self.error:
             raise self.error
+
+    async def status(self, definition: LabDefinition) -> LabRuntimeStatus:
+        self.definition = definition
+        self.operation = "status"
+        if self.error:
+            raise self.error
+        return self.runtime_status
 
 
 def test_start_lab_uses_predefined_mission_one_definition() -> None:
@@ -149,3 +163,47 @@ def test_reset_lab_translates_docker_failure() -> None:
 
     with pytest.raises(LabResetFailedError):
         asyncio.run(service.reset_lab(1))
+
+
+def test_get_status_returns_running_target_details() -> None:
+    runner = FakeLabRunner(
+        runtime_status=LabRuntimeStatus(LabState.RUNNING, "172.20.0.3")
+    )
+
+    result = asyncio.run(LabService(runner).get_status(1))
+
+    assert result.status is LabState.RUNNING
+    assert result.target_hostname == "target-m01"
+    assert result.target_ip == "172.20.0.3"
+    assert runner.operation == "status"
+
+
+def test_get_status_omits_target_when_not_running() -> None:
+    result = asyncio.run(
+        LabService(
+            FakeLabRunner(runtime_status=LabRuntimeStatus(LabState.STARTING))
+        ).get_status(1)
+    )
+
+    assert result.status is LabState.STARTING
+    assert result.target_hostname is None
+    assert result.target_ip is None
+
+
+def test_get_status_rejects_unknown_mission_without_calling_runner() -> None:
+    runner = FakeLabRunner()
+
+    with pytest.raises(LabNotFoundError):
+        asyncio.run(LabService(runner).get_status(999))
+
+    assert runner.operation is None
+
+
+def test_get_status_converts_docker_failure_to_error_state() -> None:
+    result = asyncio.run(
+        LabService(FakeLabRunner(error=DockerCommandError())).get_status(1)
+    )
+
+    assert result.status is LabState.ERROR
+    assert result.target_hostname is None
+    assert result.target_ip is None

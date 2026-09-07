@@ -16,6 +16,7 @@ from app.services.lab_service import (
     LabService,
     LabStartFailedError,
     LabStartResult,
+    LabStatusResult,
     LabStopFailedError,
     LabStopResult,
 )
@@ -48,6 +49,7 @@ __all__ = [
     "LabService",
     "LabStartFailedError",
     "LabStartResult",
+    "LabStatusResult",
     "LabStopFailedError",
     "LabStopResult",
     "ProgressService",

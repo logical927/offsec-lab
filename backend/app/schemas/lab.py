@@ -18,3 +18,14 @@ class LabStopResponse(BaseModel):
 class LabResetResponse(BaseModel):
     mission_id: int
     status: Literal["running"]
+
+
+class LabTargetResponse(BaseModel):
+    hostname: str
+    ip: str
+
+
+class LabStatusResponse(BaseModel):
+    mission_id: int
+    status: Literal["STOPPED", "STARTING", "RUNNING", "STOPPING", "ERROR"]
+    target: LabTargetResponse | None
