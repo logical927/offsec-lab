@@ -6,7 +6,39 @@ from app.services import (
     ChallengeNotFoundError,
     ChallengeLockedError,
     MissionNotFoundError,
+    LabNotFoundError,
+    LabStartFailedError,
 )
+
+
+async def lab_not_found_handler(
+    _request: Request,
+    _exc: LabNotFoundError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={
+            "error": {
+                "code": "LAB_NOT_FOUND",
+                "message": "Lab not found.",
+            }
+        },
+    )
+
+
+async def lab_start_failed_handler(
+    _request: Request,
+    _exc: LabStartFailedError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "error": {
+                "code": "LAB_START_FAILED",
+                "message": "Failed to start the lab.",
+            }
+        },
+    )
 
 
 async def challenge_locked_handler(
