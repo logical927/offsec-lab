@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
 
-from app.lab import DockerCommandError, LabRunner, get_lab_definition
+from app.lab import DockerCommandError, LabRunner, LabState, get_lab_definition
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,14 @@ class LabStopResult:
 class LabResetResult:
     mission_id: int
     status: str
+
+
+@dataclass(frozen=True)
+class LabStatusResult:
+    mission_id: int
+    status: LabState
+    target_hostname: str | None = None
+    target_ip: str | None = None
 
 
 class LabService:
@@ -95,3 +103,25 @@ class LabService:
             raise LabResetFailedError from exc
 
         return LabResetResult(mission_id=mission_id, status="running")
+
+    async def get_status(self, mission_id: int) -> LabStatusResult:
+        definition = get_lab_definition(mission_id)
+        if definition is None:
+            raise LabNotFoundError
+
+        try:
+            runtime_status = await self._runner.status(definition)
+        except DockerCommandError:
+            logger.exception("LAB_ERROR operation=status mission_id=%s", mission_id)
+            return LabStatusResult(mission_id=mission_id, status=LabState.ERROR)
+
+        target_hostname = None
+        if runtime_status.state is LabState.RUNNING:
+            target_hostname = definition.target_container
+
+        return LabStatusResult(
+            mission_id=mission_id,
+            status=runtime_status.state,
+            target_hostname=target_hostname,
+            target_ip=runtime_status.target_ip,
+        )

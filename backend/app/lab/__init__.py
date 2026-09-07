@@ -3,6 +3,8 @@ from app.lab.runner import (
     DockerCommandError,
     DockerComposeLabRunner,
     LabRunner,
+    LabRuntimeStatus,
+    LabState,
 )
 
 __all__ = [
@@ -11,5 +13,7 @@ __all__ = [
     "LAB_REGISTRY",
     "LabDefinition",
     "LabRunner",
+    "LabRuntimeStatus",
+    "LabState",
     "get_lab_definition",
 ]

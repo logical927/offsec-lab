@@ -96,6 +96,17 @@ Reset removes only the registered `offsec-m01` Compose project's containers,
 network, and volumes, then force-recreates and starts that project. It does not
 reset saved learning progress.
 
+Inspect the current Mission 01 lab state:
+
+```bash
+curl http://localhost:8000/api/v1/labs/1/status
+```
+
+The status is one of `STOPPED`, `STARTING`, `RUNNING`, `STOPPING`, or `ERROR`.
+When the lab is running, the response also includes the Target container's
+hostname and internal lab-network IP address. Docker command failures are
+reported as `ERROR` without exposing command output or host details.
+
 Apply database migrations from the backend container after the stack starts:
 
 ```bash
