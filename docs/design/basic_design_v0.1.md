@@ -594,28 +594,31 @@ sequenceDiagram
 # 22. Lab Stop Sequence
 
 ```text
-POST /labs/m01/stop
+POST /api/v1/labs/1/stop
         ↓
 Registry Validation
         ↓
-docker compose down
+docker compose stop
         ↓
 STOPPED
 ```
+
+停止済みの場合はComposeの停止処理を再実行せず、`already_stopped: true` を返す。
+停止はMission 01のContainerを削除せず、一時停止のみ行う。
 
 ---
 
 # 23. Lab Reset Sequence
 
 ```text
-Reset
- ↓
-docker compose down -v
- ↓
-docker compose up -d
- ↓
-Health Check
- ↓
+POST /api/v1/labs/1/reset
+        ↓
+Registry Validation
+        ↓
+docker compose down --volumes
+        ↓
+docker compose up -d --force-recreate --wait
+        ↓
 RUNNING
 ```
 

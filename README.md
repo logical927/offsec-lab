@@ -9,7 +9,7 @@ OffSec Lab is a local cybersecurity training platform for learning vulnerability
 The backend provides Mission, Challenge Answer, and Progress APIs backed by
 PostgreSQL. Mission 01 has an internal Docker network, a restricted attacker
 container, and an observable SSH/HTTP target for reconnaissance. The backend
-Lab Controller can start Mission 01 through its allowlisted API.
+Lab Controller can start, stop, and reset Mission 01 through its allowlisted API.
 
 The v0.1 MVP is planned for a single local user and one reconnaissance mission.
 
@@ -77,6 +77,24 @@ curl -X POST http://localhost:8000/api/v1/labs/1/start
 The response reports `status: "running"` and whether the complete healthy lab
 was already running. Only registered Mission IDs are accepted. The operation
 has a 120-second execution timeout.
+
+Temporarily stop Mission 01 without removing its containers:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/labs/1/stop
+```
+
+The response reports `status: "stopped"` and whether the lab was already
+stopped. Repeated stop requests are safe. Recreate Mission 01 from its clean
+Compose definition and wait for it to become healthy:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/labs/1/reset
+```
+
+Reset removes only the registered `offsec-m01` Compose project's containers,
+network, and volumes, then force-recreates and starts that project. It does not
+reset saved learning progress.
 
 Apply database migrations from the backend container after the stack starts:
 
