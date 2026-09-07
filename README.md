@@ -6,7 +6,9 @@ OffSec Lab is a local cybersecurity training platform for learning vulnerability
 
 ## Project Status
 
-The backend provides Mission, Challenge Answer, and Progress APIs backed by
+The frontend foundation provides a Next.js App Router shell, shared design
+tokens and UI primitives, and placeholder routes for the v0.1 user flow. The
+backend provides Mission, Challenge Answer, and Progress APIs backed by
 PostgreSQL. Mission 01 has an internal Docker network, a restricted attacker
 container, and an observable SSH/HTTP target for reconnaissance. The backend
 Lab Controller can start, stop, and reset Mission 01 through its allowlisted API.
@@ -122,7 +124,7 @@ The PostgreSQL service is reachable only from the Compose network; it does not p
 
 Read [AGENTS.md](AGENTS.md), the MVP requirements, basic design, and relevant ADRs before implementing an issue.
 
-- `frontend/`: future frontend implementation.
+- `frontend/`: Next.js and TypeScript frontend.
 - `backend/`: future backend implementation.
 - `challenges/`: future isolated mission labs.
 - `scripts/`: future development and lab helper scripts.
@@ -134,6 +136,30 @@ Run the backend API tests from `backend/` after installing `requirements-dev.txt
 ```bash
 python -m pip install -r requirements-dev.txt
 python -m pytest
+```
+
+Install and run the frontend from `frontend/` with Node.js and pnpm:
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+The development server is available at `http://localhost:3000`; `/` redirects
+to `/dashboard`. Run each frontend validation command from `frontend/`:
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Preview a completed production build locally with:
+
+```bash
+pnpm start
 ```
 
 Run migrations locally from `backend/` with the same `POSTGRES_*` variables set:
