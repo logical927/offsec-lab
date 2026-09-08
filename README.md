@@ -6,8 +6,9 @@ OffSec Lab is a local cybersecurity training platform for learning vulnerability
 
 ## Project Status
 
-The frontend foundation provides a Next.js App Router shell, shared design
-tokens and UI primitives, and placeholder routes for the v0.1 user flow. The
+The frontend provides the Dashboard → Learning Path → Mission Briefing →
+Lab Workspace → Challenge → Mission Complete flow, using shared dark-theme
+UI primitives and backend-authoritative progress. The
 backend provides Mission, Challenge Answer, and Progress APIs backed by
 PostgreSQL. Mission 01 has an internal Docker network, a restricted attacker
 container, and an observable SSH/HTTP target for reconnaissance. The backend
@@ -143,10 +144,11 @@ Install and run the frontend from `frontend/` with Node.js and pnpm:
 ```bash
 cd frontend
 pnpm install
+cp .env.example .env.local
 pnpm dev
 ```
 
-The development server is available at `http://localhost:3000`; `/` redirects
+The development server is bound to `127.0.0.1:3000`; `/` redirects
 to `/dashboard`. Run each frontend validation command from `frontend/`:
 
 ```bash
@@ -161,6 +163,38 @@ Preview a completed production build locally with:
 ```bash
 pnpm start
 ```
+
+Both frontend commands bind to loopback because the frontend now relays Lab
+API requests. Do not expose it to the LAN or Internet.
+
+The browser calls same-origin `/api/v1/*`. Next.js rewrites those requests to
+the server-only `API_BASE_URL` in `frontend/.env.local` (default:
+`http://127.0.0.1:8000`). Set it to your local backend origin, without
+`/api/v1` or a trailing slash. Restart development after changes; rebuild
+production because rewrites are recorded at build time. No CORS change or
+browser-visible secret is needed.
+
+Mission routes use numeric API IDs, for example `/missions/1`. An empty
+database displays an empty state; the frontend never seeds content. Hints,
+difficulty, and learning goals are not currently exposed by the Mission API.
+The HintPanel is ready for supplied data and currently displays unavailable.
+Existing XP/LEVEL dashes in the application shell remain unpopulated.
+
+Start, Stop, and Reset are synchronous backend operations. The workspace
+refreshes status afterwards to retrieve the current target. Reset confirms
+discarding lab changes while preserving learning progress. If a request
+times out, refresh status before retrying; stopping the browser request does
+not cancel Docker work already accepted by the backend. Ordinary reads have
+a 30-second timeout, and Lab writes and their proxy have a five-minute limit.
+Transitional states are checked every three seconds for at most 20 checks.
+
+After a correct answer, the UI retrieves progress again. It shows Mission
+Complete only when that response confirms completion. Returning to Dashboard,
+Learning Path, or Progress fetches fresh backend data. Progress is not stored
+in localStorage and Lab Reset does not reset it.
+
+See [frontend flow validation](docs/testing/frontend-mvp-flow.md) for test
+coverage and the isolated browser fixture procedure.
 
 Run migrations locally from `backend/` with the same `POSTGRES_*` variables set:
 
