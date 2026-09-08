@@ -1,4 +1,19 @@
 services:
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        API_BASE_URL: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    security_opt:
+      - no-new-privileges:true
+    privileged: false
+    networks:
+      - management
+
   backend:
     build:
       context: ./backend
