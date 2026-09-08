@@ -6,7 +6,8 @@ OffSec Lab is a local cybersecurity training platform for learning vulnerability
 
 ## Project Status
 
-The frontend provides the Dashboard → Learning Path → Mission Briefing →
+The Docker Compose development environment starts the frontend, backend, and
+PostgreSQL services. The frontend provides the Dashboard → Learning Path → Mission Briefing →
 Lab Workspace → Challenge → Mission Complete flow, using shared dark-theme
 UI primitives and backend-authoritative progress. The
 backend provides Mission, Challenge Answer, and Progress APIs backed by
@@ -27,7 +28,7 @@ The documented v0.1 architecture uses:
 - Lab control: the containerized backend invokes Docker Compose through a Lab Runner using predefined mission configurations.
 - Lab access: an external WSL2 terminal.
 
-These components will be implemented in later issues. See the basic design and accepted ADRs below.
+See the basic design and accepted ADRs below.
 
 ADR-002 supersedes ADR-001 and establishes the containerized management plane.
 ADR-006 documents a security-sensitive local MVP exception that mounts the
@@ -51,6 +52,10 @@ docker compose up --build -d
 docker compose exec backend alembic upgrade head
 docker compose exec backend python -m app.seed
 ```
+
+Open the frontend at <http://localhost:3000>. The home route redirects to the
+Dashboard. The frontend proxies `/api/v1/*` requests to the backend across the
+private Compose management network.
 
 Verify FastAPI liveness:
 
@@ -121,7 +126,7 @@ docker compose exec backend alembic upgrade head
 Alembic reads the same `POSTGRES_*` environment variables as the application;
 the configuration does not contain database credentials.
 
-The PostgreSQL service is reachable only from the Compose network; it does not publish port 5432 to the host. The backend API is bound to `127.0.0.1` on the host.
+The PostgreSQL service is reachable only from the Compose network; it does not publish port 5432 to the host. The frontend and backend are bound to `127.0.0.1` on the host.
 
 ## Development
 
