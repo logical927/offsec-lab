@@ -186,7 +186,8 @@ The authoritative content is `backend/app/mission01.py`. The repeatable seed
 updates Mission ID 1 and its five challenge positions in place, preserving
 existing IDs, slugs, and progress. See [Mission 01](challenges/m01-recon/README.md)
 for the content and verification guide.
-The HintPanel is ready for supplied data and currently displays unavailable.
+Mission 01 provides three hints per challenge and reveals them in order.
+Missions without hint data display that hints are unavailable.
 Existing XP/LEVEL dashes in the application shell remain unpopulated.
 
 Start, Stop, and Reset are synchronous backend operations. The workspace

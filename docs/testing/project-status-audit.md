@@ -3,9 +3,10 @@
 Audit date: 2026-09-08. Source precedence: current working-tree implementation and
 executed tests, then local Git/merged PR history, then documents and WBS. Tests
 and exact commands are recorded in [phase9-test-report.md](phase9-test-report.md).
-`Done` describes verified local functionality, not a claim that uncommitted work
-has been merged. Remote GitHub Issues/Milestones were not accessible via CLI or
-connector and were not edited.
+`Done` describes verified functionality, not a claim that work has been merged to
+`main`. ISSUE-022 is committed as `930a0da`, and Phase 9 is committed as
+`7cbf8ec`. Both commits are included in open PR #17, which is awaiting merge to
+`main`. Remote GitHub Issues/Milestones were not edited.
 
 ## Issue evidence
 
@@ -15,7 +16,7 @@ connector and were not edited.
 | 002 Docker Development Environment | In Progress, retained | Compose runs backend/DB, but its recorded scope includes frontend and WBS 2.1 requires three services; frontend is a separate Next.js process |
 | 003 FastAPI Backend Foundation | Done, retained | `7391efc`; real /health and /ready plus test_health.py |
 | 004 PostgreSQL Database Foundation | Done, retained | `7391efc`, database.py/Compose; real PostgreSQL migration/seed/API test |
-| 005 Mission / Challenge Data Model | In Progress → Done | `304204c`, `5c4506e`, `d3ca138` plus existing uncommitted ISSUE-022 Hint migration; four models, full migration round trip and constraints validated |
+| 005 Mission / Challenge Data Model | In Progress → Done | `304204c`, `5c4506e`, `d3ca138` plus the ISSUE-022 Hint migration committed in `930a0da`; four models, full migration round trip and constraints validated |
 | 006 Mission API | Done, retained | `795827f`, routes/services/repository/schema tests and real DB/browser reads |
 | 007 Challenge Answer API | Done, retained | `5c4506e`, answer service/API, normalization/invalid/locked cases and five real answers |
 | 008 Progress Management | Done, retained | `d3ca138`, persistent progress and sequential completion; rollback/reanswer tests and real DB/E2E |
@@ -32,7 +33,7 @@ connector and were not edited.
 | 019 Challenge UI | Done, retained | `1b77362`; wrong/correct/refresh failure unit integration and five browser answers |
 | 020 Hint UI | Done, retained | `1b77362` plus existing ISSUE-022 content; three-stage disclosure verified through real API client and browser |
 | 021 Mission Complete UI | Done, retained | `1b77362` plus existing ISSUE-022 learning review; backend-confirmed modal, reload and review tests |
-| 022 Mission 01 Content | Done, retained | Existing uncommitted mission01.py/seed/hints/migration and issue-022-first-playable.md; migration/seed/five-answer and real reconnaissance/E2E passed. No ISSUE-022 commit exists yet |
+| 022 Mission 01 Content | Done, retained | Mission 01 content, seed, hints, migration and report are committed in `930a0da`; migration/seed/five-answer and real reconnaissance/E2E passed |
 | 023 Backend Tests | In Progress → Done | Current Phase 9 additions: 18 cases; 131 backend tests including PostgreSQL passed |
 | 024 Lab Integration Tests | Not Started → Done | Current Phase 9 real HTTP/Docker/DNS/Nmap/HTTP/reset/cleanup test passed twice |
 | 025 Frontend Tests | Not Started → Done | 3 actual-client integration tests added; all 41 frontend cases passed |
@@ -128,9 +129,8 @@ cross-checked against task/status counts.
 
 - Remote GitHub status could not be verified; the audit does not claim to close
   remote issues or milestones.
-- ISSUE-022 and Phase 9 are verified in the local working tree; they are not
-  committed/merged. The earlier unrelated design deletion and existing user
-  changes remain untouched.
+- ISSUE-022 is committed as `930a0da`, and Phase 9 is committed as `7cbf8ec`.
+  Both are included in open PR #17 and are not yet merged to `main`.
 - ISSUE-002/WBS 2.1 cannot be declared Done under their current recorded scope.
 - Next planned Phase 9 successor is ISSUE-027. Completing the entire v0.1 project
   also requires resolving the ISSUE-002 scope gap, ISSUE-028 and ISSUE-029.

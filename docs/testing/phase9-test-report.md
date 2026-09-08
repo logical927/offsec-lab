@@ -22,7 +22,11 @@ Started on `main` at `1215116` (merged frontend MVP PR #16). Created
 uncommitted files. The working tree already contained ISSUE-022 models, migration,
 seed/content, frontend learning/hints changes, its tests/report, README changes,
 a modified WBS, an unrelated UI design file deletion/replacement, and `outputs/`.
-These were not discarded or attributed to Phase 9. No merge, push, or PR created.
+These were not discarded or attributed to Phase 9. At the end of the Codex test
+execution recorded by this report, no merge, push, or PR had been created. That
+statement records the test-run endpoint and does not describe the current GitHub
+state; the resulting commits are now included in open PR #17, before merge to
+`main`.
 
 Read the actual Japanese-named MVP requirements, basic design, ADR-001 through
 ADR-006, Mission 01 README and prior testing reports. The requirements filename
