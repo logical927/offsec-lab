@@ -6,8 +6,8 @@ This directory contains the isolated Docker Compose environment for Mission 01.
 
 `compose.lab.yml` defines the dedicated `offsec-m01-net` bridge network. The
 network is internal, so containers attached only to it cannot use Docker's
-external gateway. The attacker service joins this network; the future target
-service must join the same network without publishing host ports.
+external gateway. The implemented attacker and target services both join only
+this network, and the target publishes no host ports.
 
 The target does not publish host ports. The intended access path is:
 
