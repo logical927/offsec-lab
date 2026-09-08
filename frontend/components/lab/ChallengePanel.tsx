@@ -4,6 +4,7 @@ import { Badge, Button, Card, Input } from "@/components/ui";
 import { api, type AnswerResult, type MissionDetail, type MissionProgress } from "@/lib/api/client";
 import { ChallengeProgress, LoadState } from "@/components/mission/shared";
 import styles from "@/components/mission/mission.module.css";
+import { HintPanel } from "./HintPanel";
 
 export function ChallengePanel({ mission, onProgress }: { mission: MissionDetail; onProgress?: (progress: MissionProgress) => void }) {
   const [progress, setProgress] = useState<MissionProgress>();
@@ -100,6 +101,7 @@ export function ChallengePanel({ mission, onProgress }: { mission: MissionDetail
       </form>
       <div role="status" aria-live="polite">{busy ? "Checking answer or progress…" : result?.correct ? "✓ CORRECT" : result ? "✕ INCORRECT — Review your reconnaissance results and try again." : status === "COMPLETED" ? "Challenge completed." : ""}</div>
       {status === "LOCKED" && <p>Complete the preceding challenge to unlock this one.</p>}
+      {status !== "LOCKED" && <HintPanel key={challenge.id} hints={[...(challenge.hints ?? [])].sort((a,b) => a.level - b.level).map(h => ({ id: String(h.id), content: h.content }))} />}
       {confirmed && !busy && status === "COMPLETED" && available && <Button onClick={() => { focusNext.current = true; setSelected(available.id); setAnswer(""); setResult(undefined); }}>Next Challenge</Button>}
     </>}
   </Card>;

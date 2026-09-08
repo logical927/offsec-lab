@@ -34,3 +34,13 @@ it("restores recorded completion on reload and offers only a real available next
   expect(await screen.findByRole("link", { name: "Next Mission" })).toHaveAttribute("href", "/missions/2");
   await waitFor(() => expect(api.answer).not.toHaveBeenCalled());
 });
+it("shows backend learning content on completion and reopens it from the workspace", async () => {
+  vi.mocked(api.mission).mockResolvedValue({ ...mission, learning_explanation: "Observation is evidence for later analysis." });
+  vi.mocked(api.progress).mockResolvedValue({ missions: [{ mission_id: 1, status: "COMPLETED", challenges: [{ challenge_id: 10, status: "COMPLETED" }] }] });
+  render(<LabWorkspace missionId={1} />);
+  expect(await screen.findByText("Observation is evidence for later analysis.")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Return to Workspace" }));
+  expect(screen.queryByText("Observation is evidence for later analysis.")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Review Learning" }));
+  expect(screen.getByText("Observation is evidence for later analysis.")).toBeVisible();
+});

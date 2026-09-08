@@ -11,6 +11,25 @@ beforeEach(() => {
   vi.mocked(api.progress).mockReset().mockResolvedValue(initial);
   vi.mocked(api.answer).mockReset();
 });
+it("uses the selected challenge's three API hints and resets them on Next Challenge", async () => {
+  const withHints = { ...mission, challenges: mission.challenges.map(c => ({ ...c, hints: [3, 1, 2].map(level => ({ id: c.id * 10 + level, level, content: `Guidance ${c.id}/${level}` })) })) };
+  vi.mocked(api.answer).mockResolvedValue({ correct: true, status: "COMPLETED", next_challenge_id: 20, mission_status: "IN_PROGRESS" });
+  vi.mocked(api.progress).mockResolvedValueOnce(initial).mockResolvedValue({ missions: [{ mission_id: 1, status: "IN_PROGRESS", challenges: [{ challenge_id: 10, status: "COMPLETED" }, { challenge_id: 20, status: "AVAILABLE" }] }] });
+  render(<ChallengePanel mission={withHints} />);
+  await screen.findByRole("textbox");
+  for (let level = 1; level <= 3; level++) {
+    fireEvent.click(screen.getByRole("button", { name: `Hint ${level} — AVAILABLE` }));
+    expect(screen.getByText(`Guidance 10/${level}`)).toBeVisible();
+  }
+  expect(screen.queryByRole("button", { name: /Hint 4/ })).not.toBeInTheDocument();
+  await enter();
+  fireEvent.click(await screen.findByRole("button", { name: "Next Challenge" }));
+  expect(screen.queryByText("Guidance 10/1")).not.toBeInTheDocument();
+  expect(screen.queryByText("Guidance 20/1")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Hint 2 — LOCKED" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Hint 1 — AVAILABLE" }));
+  expect(screen.getByText("Guidance 20/1")).toBeVisible();
+});
 async function enter() {
   const input = await screen.findByRole("textbox", { name: "Answer" });
   fireEvent.change(input, { target: { value: "fixture observation" } });

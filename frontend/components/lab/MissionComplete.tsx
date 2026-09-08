@@ -23,6 +23,7 @@ export function MissionComplete({ mission, onClose }: { mission: MissionDetail; 
   }, [mission.id]);
   return <Modal title="Mission Complete" onClose={onClose}>
     <p>✓ All required challenges are complete.</p><h3>{mission.title}</h3>
+    {mission.learning_explanation && <section><h4>Learning Review</h4><p className={styles.text}>{mission.learning_explanation}</p></section>}
     {mission.challenges.length > 0 && <><h4>Completed challenges</h4><ul>{mission.challenges.map(c => <li key={c.id}>{c.title}</li>)}</ul></>}
     <p>You can return to the learning path or return to the workspace to manage the lab.</p>
     <div className={styles.actions}><Button variant="secondary" onClick={onClose}>Return to Workspace</Button><ActionLink href="/learning-path">Back to Learning Path</ActionLink>{next && <ActionLink href={`/missions/${next.id}`}>Next Mission</ActionLink>}</div>

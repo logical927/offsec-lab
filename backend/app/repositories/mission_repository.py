@@ -2,6 +2,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models import Challenge, Mission
 
@@ -30,6 +31,7 @@ class MissionRepository:
     async def list_active_challenges(self, mission_id: int) -> Sequence[Challenge]:
         statement = (
             select(Challenge)
+            .options(selectinload(Challenge.hints))
             .where(
                 Challenge.mission_id == mission_id,
                 Challenge.is_active.is_(True),

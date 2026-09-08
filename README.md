@@ -48,6 +48,8 @@ the socket without making it world-writable.
 ```bash
 cp .env.example .env
 docker compose up --build -d
+docker compose exec backend alembic upgrade head
+docker compose exec backend python -m app.seed
 ```
 
 Verify FastAPI liveness:
@@ -175,8 +177,15 @@ production because rewrites are recorded at build time. No CORS change or
 browser-visible secret is needed.
 
 Mission routes use numeric API IDs, for example `/missions/1`. An empty
-database displays an empty state; the frontend never seeds content. Hints,
-difficulty, and learning goals are not currently exposed by the Mission API.
+database displays an empty state until the initialization commands above run;
+the frontend never seeds content. Mission 01 now provides five challenges,
+three progressive hints each, scenario/learning goals in the description, and
+a learning review in Mission Complete. Difficulty is not exposed by the API.
+
+The authoritative content is `backend/app/mission01.py`. The repeatable seed
+updates Mission ID 1 and its five challenge positions in place, preserving
+existing IDs, slugs, and progress. See [Mission 01](challenges/m01-recon/README.md)
+for the content and verification guide.
 The HintPanel is ready for supplied data and currently displays unavailable.
 Existing XP/LEVEL dashes in the application shell remain unpopulated.
 

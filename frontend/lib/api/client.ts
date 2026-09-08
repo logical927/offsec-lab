@@ -1,6 +1,6 @@
 export type Mission = { id: number; slug: string; title: string; description: string | null; sort_order: number };
-export type Challenge = Mission;
-export type MissionDetail = Mission & { challenges: Challenge[] };
+export type Challenge = Mission & { hints?: { id: number; level: number; content: string }[] };
+export type MissionDetail = Mission & { challenges: Challenge[]; learning_explanation?: string | null };
 export type ChallengeStatus = "LOCKED" | "AVAILABLE" | "COMPLETED";
 export type MissionProgress = { mission_id: number; status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED"; challenges: { challenge_id: number; status: ChallengeStatus }[] };
 export type Progress = { missions: MissionProgress[] };

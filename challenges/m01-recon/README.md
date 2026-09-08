@@ -70,3 +70,53 @@ docker compose -f challenges/m01-recon/compose.lab.yml config --quiet
 The automated tests verify that the resulting `lab` network uses the bridge
 driver, has `internal` set to `true`, and has no published host ports or unsafe
 container settings.
+
+## First playable learning content (ISSUE-022)
+
+Mission ID **1**, **Reconnaissance Fundamentals**, teaches an authorized internal
+assessment of Northbridge Systems' newly deployed status portal. The theme is
+Web Server Attack Surface Reconnaissance. All commands run from the existing
+attacker environment against `target-m01` on the isolated lab network.
+
+Initialize the application after building its backend:
+
+```bash
+docker compose exec backend alembic upgrade head
+docker compose exec backend python -m app.seed
+```
+
+`backend/app/mission01.py` is the single authoritative source for scenario,
+tasks, answers, hints, and learning explanation. `app.seed` updates Mission 1
+and challenge positions 1–5 without replacing existing IDs/slugs or resetting
+progress. Unexpected extra challenge positions cause a transactional failure
+for review, rather than deletion of learning history. Fresh initialization
+creates one mission, five challenges, and fifteen persisted hints.
+
+The progression is Host Discovery → Port Scan → Service Enumeration → Version
+Detection → HTTP Inspection. Each challenge has exactly three hints: reasoning,
+technique, and a concrete command to interpret. Mission Complete provides a
+learning review, also accessible through Review Learning after dismissal.
+
+Answer formats are a reachability acknowledgement, ascending comma-separated
+ports, comma-separated services in port order 22 then 80, SSH product/upstream
+version without packaging metadata, and the HTML title text. Normalization
+uses existing Unicode NFKC, case folding, trimming, and whitespace collapsing;
+comma-separated submissions must omit spaces. Incorrect answers do not advance
+progress, and locked challenges cannot be answered. No command telemetry is
+collected: submissions assess reported observations, not command execution.
+
+Mission detail adds ordered `challenges[].hints` (`id`, `level`, `content`) and
+`learning_explanation`. Explicit response schemas exclude `accepted_answers`.
+The frontend imports no seed or answer data. Command examples necessarily
+include observed ports as parameters for subsequent enumeration; they are not
+an answer-key field. To honor the issue's answer-disclosure constraint, the
+Host Discovery task describes its acknowledgement word instead of printing
+the canonical answer. The scenario also avoids giving the exact HTML title.
+
+The new Alembic revision `20260908_0004` adds the Hint table (unique challenge
+and level; levels 1–3) and nullable Mission learning explanation. Downgrading
+to `20260906_0003` removes only these new content fields/table; upgrading and
+seeding restores them. Progress and existing mission/challenge identities remain.
+
+For the completion audit and validation results, see
+[ISSUE-022 validation](../../docs/testing/issue-022-first-playable.md).
