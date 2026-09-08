@@ -1,1917 +1,380 @@
-# OffSec Lab v0.1 基本設計書
+# OffSec Lab v0.1 Basic Design
 
-## 1. 文書概要
+## 1. Purpose and status
 
-### 1.1 文書名
+This document records the implemented OffSec Lab v0.1 architecture. It replaces
+earlier prospective examples in this file with the system that exists after
+ISSUE-002 through ISSUE-027. It does not redesign the MVP.
 
-OffSec Lab v0.1 基本設計書
+OffSec Lab v0.1 is a local, single-user cyber range. A browser-based management
+application presents learning content and controls a Docker-based reconnaissance
+Lab. The intentionally observable target remains separated from the management
+application and from normal external networks.
 
-### 1.2 対象バージョン
+Related decisions:
 
-**OffSec Lab v0.1**
+- [ADR-001](adr/ADR-001-wsl-hosted-backend.md) is superseded.
+- [ADR-002](adr/ADR-002-Containerized-Management-Plane.md) establishes the
+  containerized management plane.
+- [ADR-003](adr/ADR-003-internal-lab-network.md) establishes the internal Lab
+  network.
+- [ADR-004](adr/ADR-004-postgresql.md) selects PostgreSQL.
+- [ADR-005](adr/ADR-005-external-terminal.md) selects an external terminal.
+- [ADR-006](adr/ADR-006-backend-docker-socket-mvp-exception.md) accepts the
+  backend-only Docker socket risk for the local v0.1 MVP.
 
-### 1.3 目的
-
-本書は、OffSec Lab v0.1 MVP要件を実現するためのシステム構成、コンポーネント、画面、API、データ、Lab環境、セキュリティ、および主要な処理方式を定義する。
-
-本書確定後、詳細設計およびCodexによる実装へ移行する。
-
----
-
-# 2. 設計方針
-
-OffSec Lab v0.1では以下を基本方針とする。
-
-1. ローカル環境専用とする
-2. 単一ユーザーを前提とする
-3. 脆弱なTargetはDocker内部へ隔離する
-4. TargetのPortはHostへ公開しない
-5. AttackerからのみTargetへアクセスさせる
-6. Docker Socketは原則Application ContainerへMountしない（Backendのv0.1例外はADR-006）
-7. Docker操作は定義済みMissionのみ許可する
-8. Challenge追加を容易にする
-9. MVPではMicroservices化しない
-10. Vertical Sliceで開発する
-
----
-
-# 3. システム全体構成
-
-## 3.1 Logical Architecture
+## 2. System context
 
 ```mermaid
 flowchart TB
+    Player[Player on local host]
+    Browser[Chromium browser]
+    Frontend[Next.js frontend]
+    Backend[FastAPI backend]
+    Database[(PostgreSQL)]
+    Runner[LabService and LabRunner]
+    Engine[Docker Engine]
+    Attacker[Attacker container]
+    Target[Target container]
 
-    U[Player]
-
-    FE[Next.js Frontend]
-    API[FastAPI Backend]
-    DB[(PostgreSQL)]
-
-    LC[Lab Controller]
-
-    ATT[Attacker Container]
-    TAR[Target Container]
-
-    U --> FE
-    FE --> API
-    API --> DB
-    API --> LC
-
-    LC --> ATT
-    LC --> TAR
-
-    ATT --> TAR
+    Player --> Browser
+    Browser --> Frontend
+    Frontend --> Backend
+    Backend --> Database
+    Backend --> Runner
+    Runner --> Engine
+    Player -->|docker exec from WSL2| Attacker
+    Engine --> Attacker
+    Engine --> Target
+    Attacker --> Target
 ```
 
----
+The player uses the browser for mission content, progress, answers, and Lab
+lifecycle controls. The player uses a separate WSL2 terminal to run tools inside
+the attacker container. There is no browser terminal in v0.1.
 
-# 4. Physical Architecture
+## 3. Deployment topology
 
-v0.1ではWindows 11 + WSL2 + Docker Desktopを標準開発環境とする。
+The supported host is Windows 11 with WSL2 Ubuntu and Docker Desktop's Linux
+engine. The root `docker-compose.yml` builds and starts all three management
+services:
 
 ```text
-Windows 11
-│
-├── Browser
-│     │
-│     └── http://localhost:3000
-│
-└── WSL2 / Ubuntu
-      │
-      ├── Next.js
-      │
-      ├── FastAPI
-      │
-      ├── Git
-      │
-      ├── Codex
-      │
-      └── Docker CLI
-              │
-              ▼
-         Docker Desktop
-              │
-              ├── PostgreSQL
-              │
-              └── OffSec Lab Network
-                    │
-                    ├── attacker-m01
-                    │
-                    └── target-m01
+Host loopback
+  127.0.0.1:${FRONTEND_PORT:-3000} -> frontend:3000
+  127.0.0.1:${BACKEND_PORT:-8000}  -> backend:8000
+
+Docker management network
+  frontend <-> backend <-> db:5432
+
+Docker Lab network (separate project)
+  offsec-m01-attacker <-> offsec-m01-net <-> target-m01
 ```
 
----
+PostgreSQL has no published host port. The frontend and backend listen on all
+interfaces inside their containers but Compose publishes them only on host
+loopback. The frontend rewrites `/api/v1/*` to `http://backend:8000` in the
+Compose build. Browser traffic therefore remains same-origin.
 
-# 5. Control Plane / Lab Plane分離
+The management network and `offsec-m01-net` are distinct Docker networks. No
+management service joins the Lab network, and neither Lab container joins the
+management network.
 
-OffSec Labではシステムを2つの領域に分ける。
+## 4. Components and responsibilities
 
-## Control Plane
+### 4.1 Frontend
 
-ゲームそのものを管理する領域。
+Technology: Next.js 16, React 19, and TypeScript.
 
-構成：
+Responsibilities:
 
-- Frontend
-- Backend
-- PostgreSQL
-- Mission Engine
-- Progress Management
-- Lab Controller
+- render Dashboard, Learning Path, Progress, Mission Briefing, Lab Workspace,
+  staged Hint, and Mission Complete views;
+- call the backend through same-origin `/api/v1/*` routes;
+- display authoritative Lab and learning progress returned by the backend;
+- collect an answer and display the backend result; and
+- confirm destructive Lab reset before sending the request.
 
-Control Planeは、
+The frontend does not contain accepted answers, determine completion, authorize
+arbitrary Labs, or control Docker directly.
 
-「Missionを開始する」
+Implemented routes:
 
-「回答を判定する」
+| Route | Purpose |
+| --- | --- |
+| `/` | Redirect to `/dashboard` |
+| `/dashboard` | Current learning and Lab overview |
+| `/learning-path` | Mission list and status |
+| `/progress` | Saved mission/challenge progress |
+| `/missions/{missionId}` | Mission briefing |
+| `/missions/{missionId}/lab` | Lab controls, target, challenges, hints, answers |
 
-「進捗を保存する」
+### 4.2 Backend API
 
-などを担当する。
+Technology: Python 3.12 and FastAPI.
 
----
-
-## Lab Plane
-
-実際のセキュリティ演習を行う領域。
-
-構成：
+The backend uses thin API handlers over services and repositories:
 
 ```text
-Docker Internal Network
-
-├── attacker
-└── target
+API -> Service -> Repository -> PostgreSQL
+API -> LabService -> DockerComposeLabRunner -> Docker CLI
 ```
 
-プレイヤーによる、
-
-```text
-Recon
-Enumeration
-Exploitation
-```
-
-などは原則Lab Plane内部で実施する。
-
----
-
-# 6. Frontend Architecture
-
-## 6.1 Technology
-
-```text
-Next.js
-TypeScript
-```
-
----
-
-## 6.2 Responsibility
-
-Frontendは以下を担当する。
-
-- Mission一覧
-- Mission詳細
-- Challenge表示
-- Hint表示
-- 回答入力
-- Lab操作
-- Lab Status表示
-- Progress表示
-- Mission Complete表示
-
-セキュリティ判定や正解判定をFrontendのみで行ってはならない。
-
----
-
-# 7. Page Structure
-
-```text
-/
-│
-├── /missions
-│
-├── /missions/[missionId]
-│
-└── /missions/[missionId]/complete
-```
-
----
-
-# 8. Home Page
-
-URL：
-
-```text
-/
-```
-
-表示：
-
-```text
-OffSec Lab
-
-Learn Offensive Security by Doing
-
-[Start Learning]
-```
-
-v0.1では簡素なLanding Pageとする。
-
----
-
-# 9. Mission List
-
-URL：
-
-```text
-/missions
-```
-
-表示例：
-
-```text
-┌─────────────────────────────┐
-│ Mission 01                  │
-│                             │
-│ Reconnaissance              │
-│                             │
-│ Difficulty: Easy            │
-│                             │
-│ Status: Not Started         │
-│                             │
-│       [View Mission]        │
-└─────────────────────────────┘
-```
-
----
-
-# 10. Mission Detail
-
-URL：
-
-```text
-/missions/1
-```
-
-主要UI：
-
-```text
-Mission 01
-Reconnaissance
-
-Scenario
-────────────────────
-
-You have been assigned to perform
-an initial security assessment...
-
-Learning Objectives
-────────────────────
-
-・Host Discovery
-・Port Scan
-・Service Enumeration
-・Version Detection
-
-Lab Status
-────────────────────
-
-STOPPED
-
-[Start Lab]
-
-
-Target
-────────────────────
-
-Available after Lab Start
-
-
-Challenges
-────────────────────
-
-01 Host Discovery
-02 Port Scan
-03 Service Enumeration
-04 Version Detection
-05 HTTP Inspection
-```
-
----
-
-# 11. Active Mission
-
-Lab起動後：
-
-```text
-Lab Status
-
-● RUNNING
-
-
-Target
-
-172.x.x.x
-
-
-Enter Attacker Environment
-
-./scripts/enter-lab.sh m01
-```
-
-v0.1ではBrowser内Terminalを実装しない。
-
-ユーザーはWSL TerminalからAttacker Containerへ入る。
-
----
-
-# 12. Attacker接続方式
-
-ユーザーが、
-
-```bash
-./scripts/enter-lab.sh m01
-```
-
-を実行する。
-
-内部処理例：
-
-```bash
-docker exec -it offsec-m01-attacker bash
-```
-
-Windows PowerShell利用向けには将来的に、
-
-```text
-enter-lab.ps1
-```
-
-も提供可能とする。
-
-v0.1ではWSL2用Shell Scriptを標準とする。
-
----
-
-# 13. Backend Architecture
-
-## 13.1 Technology
-
-```text
-Python
-FastAPI
-```
-
----
-
-# 14. Backend Layer Structure
-
-以下の責務分離を採用する。
-
-```text
-API Layer
-    ↓
-Service Layer
-    ↓
-Repository Layer
-    ↓
-Database
-```
-
-Lab操作のみ別途、
-
-```text
-API
- ↓
-Lab Service
- ↓
-Lab Runner
- ↓
-Docker CLI
-```
-
-とする。
-
----
-
-# 15. Backend Directory Structure
-
-初期案：
-
-```text
-backend/
-
-app/
-├── main.py
-│
-├── api/
-│   ├── missions.py
-│   ├── challenges.py
-│   ├── progress.py
-│   └── labs.py
-│
-├── models/
-│   ├── mission.py
-│   ├── challenge.py
-│   ├── hint.py
-│   └── progress.py
-│
-├── schemas/
-│
-├── services/
-│   ├── mission_service.py
-│   ├── challenge_service.py
-│   ├── progress_service.py
-│   └── lab_service.py
-│
-├── repositories/
-│
-├── lab/
-│   ├── runner.py
-│   └── registry.py
-│
-├── db/
-│
-└── core/
-```
-
----
-
-# 16. Docker Control Design
-
-本プロジェクトで最も重要な設計項目の一つとする。
-
-## 採用方式
-
-FastAPI BackendはADR-002に従いContainerとして実行する。ISSUE-012では、
-定義済みMissionをDocker CLIで起動するため、ADR-006で承認したv0.1限定の
-Docker Socket例外を使用する。
-
-```text
-FastAPI
-   │
-   ▼
-LabService
-   │
-   ▼
-LabRunner
-   │
-   ▼
-Docker CLI
-   │
-   ▼
-Mission Compose
-```
-
----
-
-# 17. Docker Socket Access
-
-原則としてApplication ContainerへDocker SocketをMountしない。ただし、
-Container化したBackendからLab Startを実現する最小のlocal-only MVP方式として、
-BackendだけはADR-006で明示した例外を使用する。
-
-```text
-Backend Container
-      │
-      ▼
-/var/run/docker.sock
-      │
-      ▼
-Docker Engine
-```
-
-Docker Socketへのアクセス権を持つContainerは、実質的にHost上で強い権限を
-取得できる。このためBackendはlocalhost限定、非root、非privilegedとし、
-Mission Registryから固定したCompose操作のみをargument arrayとtimeout付きで
-実行する。Attacker / Targetを含むChallenge ContainerへのMountは禁止する。
-
----
-
-# 18. Lab Runner
-
-Backendは直接自由なShell Commandを実行しない。
-
-専用のLab Runnerを用意する。
-
-例：
-
-```python
-start_lab("m01")
-stop_lab("m01")
-reset_lab("m01")
-get_lab_status("m01")
-```
-
-のみ公開する。
-
-ユーザーから任意のCompose File名やCommandを指定できないようにする。
-
----
-
-# 19. Mission Registry
-
-実行可能なMissionはRegistryで管理する。
-
-概念例：
-
-```python
-LAB_REGISTRY = {
-    "m01": {
-        "compose_file": "challenges/m01/compose.lab.yml",
-        "project_name": "offsec-m01"
-    }
-}
-```
-
-APIから受け取ったMission IDはRegistryと照合する。
-
-Registryに存在しないMissionは起動しない。
-
----
-
-# 20. Command Execution Policy
-
-Docker Command実行時は、
-
-```python
-subprocess.run(...)
-```
-
-等を使用する。
-
-以下は禁止する。
-
-```python
-shell=True
-```
-
-ユーザー入力値をCommand文字列へ直接連結しない。
-
-例：
-
-悪い設計：
-
-```python
-os.system(
-    "docker compose -f " + user_input
-)
-```
-
-採用しない。
-
-Mission IDからServer側でCompose Fileを決定する。
-
----
-
-# 21. Lab Start Sequence
-
-```mermaid
-sequenceDiagram
-
-    actor User
-    participant FE as Frontend
-    participant API as FastAPI
-    participant LS as LabService
-    participant Docker
-
-    User->>FE: Start Lab
-    FE->>API: POST /labs/m01/start
-    API->>LS: start_lab(m01)
-    LS->>LS: Registry確認
-    LS->>Docker: docker compose up -d
-    Docker-->>LS: Result
-    LS-->>API: RUNNING
-    API-->>FE: Lab Status
-    FE-->>User: Target情報表示
-```
-
----
-
-# 22. Lab Stop Sequence
-
-```text
-POST /api/v1/labs/1/stop
-        ↓
-Registry Validation
-        ↓
-docker compose stop
-        ↓
-STOPPED
-```
-
-停止済みの場合はComposeの停止処理を再実行せず、`already_stopped: true` を返す。
-停止はMission 01のContainerを削除せず、一時停止のみ行う。
-
----
-
-# 23. Lab Reset Sequence
-
-```text
-POST /api/v1/labs/1/reset
-        ↓
-Registry Validation
-        ↓
-docker compose down --volumes
-        ↓
-docker compose up -d --force-recreate --wait
-        ↓
-RUNNING
-```
-
-Volumeを利用するChallengeの場合、
-
-```text
--v
-```
-
-により状態を削除する。
-
-ただし永続化が必要なLabではMission単位でReset方式を定義する。
-
----
-
-# 24. Lab State Machine
-
-```mermaid
-stateDiagram-v2
-
-    [*] --> STOPPED
-
-    STOPPED --> STARTING
-    STARTING --> RUNNING
-    STARTING --> ERROR
-
-    RUNNING --> STOPPING
-    RUNNING --> STARTING: Reset
-
-    STOPPING --> STOPPED
-    STOPPING --> ERROR
-
-    ERROR --> STOPPED
-```
-
----
-
-# 25. Lab Status
-
-内部状態：
-
-```text
-STOPPED
-STARTING
-RUNNING
-STOPPING
-ERROR
-```
-
-v0.1では状態をBackend memory + Docker実状態から判定する。
-
-将来的にはJob管理方式への変更を検討する。
-
----
-
-# 26. Lab Network
-
-Missionごとに独立Networkを作成する。
-
-Mission 01：
-
-```text
-offsec-m01-net
-```
-
-構成：
-
-```text
-offsec-m01-net
-
-├── attacker-m01
-└── target-m01
-```
-
----
-
-# 27. Network Isolation
-
-Mission NetworkではDockerの、
-
-```yaml
-internal: true
-```
-
-を原則利用する。
-
-概念：
-
-```yaml
-networks:
-
-  lab:
-    internal: true
-```
-
-これによりLab Containerから外部ネットワークへの不要な接続を制限する。
-
----
-
-# 28. Host Port Policy
-
-Targetについて、
-
-```yaml
-ports:
-```
-
-は原則使用しない。
-
-つまり、
-
-```text
-Host
-   X
-Target:80
-```
-
-とする。
-
-アクセス可能なのは、
-
-```text
-Attacker
-   ↓
-Target:80
-```
-
-のみ。
-
----
-
-# 29. Target IP
-
-Dockerによる動的IPを使用する。
-
-固定IPはMVPでは採用しない。
-
-理由：
-
-- Subnet collision回避
-- Docker管理へ委譲
-- 環境依存を削減
-
-Backendは、
-
-```text
-docker inspect
-```
-
-等でTarget IPを取得する。
-
-取得したIPをFrontendへ返す。
-
----
-
-# 30. Target Name
-
-Docker DNS上では、
-
-```text
-target-m01
-```
-
-を使用可能とする。
-
-プレイヤーには学習目的からTarget IPを基本表示する。
-
----
-
-# 31. Mission 01 Lab
-
-Mission 01：
-
-```text
-Reconnaissance
-```
-
-Container：
-
-```text
-attacker-m01
-
-target-m01
-```
-
----
-
-# 32. Attacker Container
-
-Base：
-
-```text
-Debian 12 (bookworm-slim)
-```
-
-搭載ツール：
-
-```text
-bash
-iproute2
-iputils-ping
-nmap
-curl
-dnsutils
-```
-
-必要なツールはImage Build時に導入する。
-
-Lab実行中にInternetからパッケージを取得する設計にはしない。
-
-実行ユーザーは非rootの `trainee`（UID/GID 1000）とする。Root filesystemは
-read-onlyとし、一時ファイル用に `/tmp` のみtmpfsとして書込み可能にする。
-
----
-
-# 33. Attacker Privileges
-
-原則：
-
-```text
-privileged: false
-```
-
-とする。
-
-Mission 01では全Linux capabilityを削除し、Host Discoveryに必要な
-`NET_RAW` のみ追加する。`no-new-privileges` を有効にし、Docker Socket、
-Host Network、Host directory mountは使用しない。
-
-Resource上限はCPU 0.5、Memory 256MB、PID 128とする。
-
----
-
-# 34. Target Container
-
-Mission 01 Targetでは、
-
-```text
-22/tcp SSH
-80/tcp HTTP
-```
-
-をListenさせる。
-
-Targetは意図した情報だけをEnumeration可能とする。
-
-Targetは非rootユーザーで実行し、Root filesystemをread-onlyとする。
-全Linux capabilityを削除した上で、22/tcpおよび80/tcpのListenに必要な
-`NET_BIND_SERVICE` のみ追加する。Resource上限はCPU 0.25、Memory 128MB、
-PID 64とする。
-
----
-
-# 35. Target HTTP Service
-
-HTTPサービスでは以下を取得可能とする。
-
-```text
-HTTP Status
-Server Header
-Page Title
-Response Body
-```
-
-Mission 01ではWeb Vulnerability Exploitationは行わない。
-
-目的はEnumerationである。
-
----
-
-# 36. Target SSH Service
-
-SSH Serviceは、
-
-```text
-Port Detection
-Service Detection
-Version Detection
-```
-
-を目的として配置する。
-
-Mission 01ではCredential AttackやSSH Loginを行わない。
-
-Password、Public Key、Keyboard Interactiveによる認証を無効化する。
-SSH Host KeyはContainer起動時にtmpfsへ生成し、ImageやRepositoryへ保存しない。
-
----
-
-# 37. Database
-
-## Technology
-
-```text
-PostgreSQL
-```
-
-v0.1でも採用する。
-
-理由：
-
-Mission追加時の拡張性と、Web Application開発・Database設計をポートフォリオとして扱うため。
-
----
-
-# 38. Entity Relationship
+Main endpoints:
+
+| Method and path | Responsibility |
+| --- | --- |
+| `GET /health` | Process liveness |
+| `GET /ready` | PostgreSQL readiness |
+| `GET /api/v1/missions` | Active mission summaries |
+| `GET /api/v1/missions/{mission_id}` | Mission content, ordered challenges, hints |
+| `POST /api/v1/challenges/{challenge_id}/answers` | Backend-only answer validation and progress update |
+| `GET /api/v1/progress` | Mission and challenge progress |
+| `GET /api/v1/labs/{mission_id}/status` | Runtime state and target address |
+| `POST /api/v1/labs/{mission_id}/start` | Start the registered Lab |
+| `POST /api/v1/labs/{mission_id}/stop` | Stop its containers without deleting them |
+| `POST /api/v1/labs/{mission_id}/reset` | Remove and recreate the Lab |
+
+Client-facing failures use structured, sanitized errors. Docker command output,
+stack traces, environment secrets, and host paths are not returned to the
+browser.
+
+### 4.3 PostgreSQL
+
+PostgreSQL 17 stores learning content and progress. Alembic migrations reproduce
+the schema and `python -m app.seed` creates or updates the fixed Mission 01
+content without resetting existing progress.
 
 ```mermaid
 erDiagram
-
     MISSION ||--o{ CHALLENGE : contains
     CHALLENGE ||--o{ HINT : has
     MISSION ||--o{ PROGRESS : tracks
     CHALLENGE ||--o{ PROGRESS : tracks
 
     MISSION {
-        int id
-        string code
-        string name
-        string description
-        string difficulty
-    }
-
-    CHALLENGE {
-        int id
-        int mission_id
+        int id PK
+        string slug UK
         string title
-        string description
-        string answer
-        int display_order
+        text description
+        text learning_explanation
+        int sort_order
+        bool is_active
     }
-
+    CHALLENGE {
+        int id PK
+        int mission_id FK
+        string slug
+        string title
+        text description
+        json accepted_answers
+        int sort_order
+        bool is_active
+    }
     HINT {
-        int id
-        int challenge_id
+        int id PK
+        int challenge_id FK
         int level
-        string content
+        text content
     }
-
     PROGRESS {
-        int id
-        int mission_id
-        int challenge_id
+        int id PK
+        int mission_id FK
+        int challenge_id FK
         string status
     }
 ```
 
----
+Accepted answers remain in the backend/database and are excluded from public
+response schemas. Progress statuses are `LOCKED`, `AVAILABLE`, and `COMPLETED`.
+Mission status is derived as `NOT_STARTED`, `IN_PROGRESS`, or `COMPLETED`.
 
-# 39. Answer Storage
+### 4.4 Lab Controller
 
-Challenge AnswerをFrontendへ返してはならない。
+`LAB_REGISTRY` contains only numeric Mission ID 1. It fixes:
 
-正解はBackendまたはDatabase内で保持する。
+- Compose file `challenges/m01-recon/compose.lab.yml`;
+- Compose project `offsec-m01`;
+- services `attacker` and `target`;
+- target container `target-m01`; and
+- network `offsec-m01-net`.
 
-API：
+The caller cannot provide a Compose path, Docker arguments, image, container
+name, or shell command. The runner uses `asyncio.create_subprocess_exec` with an
+argument array, fixed operation methods, a per-process timeout, sanitized
+errors, and a lock around lifecycle operations.
 
-```text
-GET /missions/1
-```
+### 4.5 Mission 01 Lab
 
-では正解値を返さない。
+The attacker image is Debian-based and includes `ping`, `nmap`, `curl`, and
+supporting network tools. It runs as UID/GID 1000 (`trainee`). The target runs
+SSH and HTTP as an unprivileged `target` user for reconnaissance and version
+enumeration. SSH authentication is disabled; its host key is generated in
+ephemeral `/tmp` storage.
 
-回答判定：
+The target's TCP/22 and TCP/80 are internal training services. They are not
+published host ports.
 
-```text
-POST /challenges/1/answer
-```
+## 5. Communication paths
 
-Backend側でのみ実施する。
-
----
-
-# 40. Answer Normalization
-
-v0.1では簡単なNormalizationを実施する。
-
-例：
-
-```text
-80
-"80"
-80/tcp
-```
-
-等についてChallengeごとに許容値を定義できるようにする。
-
-完全な自由回答評価はv0.1では行わない。
-
----
-
-# 41. Progress
-
-Challenge Status：
+### Browser to application
 
 ```text
-LOCKED
-AVAILABLE
-COMPLETED
+Browser -> 127.0.0.1:3000 -> frontend
+frontend rewrite -> backend:8000 -> FastAPI
+FastAPI -> db:5432 -> PostgreSQL
 ```
 
-Mission Status：
+The backend is also available on `127.0.0.1:8000` for local health checks and
+API diagnostics. No CORS wildcard is needed for normal UI use because browser
+API requests are same-origin through the frontend.
+
+### Backend to Docker
 
 ```text
-NOT_STARTED
-IN_PROGRESS
-COMPLETED
+Lab API -> LabService -> registered LabDefinition
+        -> DockerComposeLabRunner -> Docker CLI -> Docker socket -> Docker Engine
 ```
 
----
+The Docker socket boundary grants host-equivalent authority. ADR-006 accepts
+this for local v0.1 only. The repository is mounted read-only at `/workspace` so
+the backend can reach the registered Compose file and build contexts.
 
-# 42. Challenge Unlock
-
-Mission 01ではSequential方式とする。
+### Player to target
 
 ```text
-Challenge 01
-     ↓
-Challenge 02
-     ↓
-Challenge 03
-     ↓
-Challenge 04
-     ↓
-Challenge 05
+WSL2 terminal -> docker exec -it offsec-m01-attacker bash
+attacker -> offsec-m01-net -> target-m01:22,80
 ```
 
-前Challenge完了後に次ChallengeをAVAILABLEとする。
+The browser and host do not connect directly to the target services.
 
----
+## 6. Network and container security
 
-# 43. Hint Design
+| Boundary/control | Implemented state |
+| --- | --- |
+| Management frontend | Host binding `127.0.0.1:${FRONTEND_PORT:-3000}` |
+| Management backend | Host binding `127.0.0.1:${BACKEND_PORT:-8000}` |
+| PostgreSQL | Management network only; no host port |
+| Lab network | Bridge, `internal: true`, `attachable: false` |
+| Attacker/target membership | Lab network only |
+| Target ports | `expose` 22 and 80; no `ports` mapping |
+| Lab root filesystems | Read-only |
+| Lab writable storage | Bounded `/tmp` tmpfs with `noexec,nosuid,nodev` |
+| Lab capabilities | Drop all; attacker adds `NET_RAW`, target adds `NET_BIND_SERVICE` |
+| Privilege/namespace | Non-privileged, `no-new-privileges`, no host network/PID/IPC |
+| Lab host mounts | None |
+| Lab Docker socket | None |
 
-Hint：
+The frontend image also runs as a non-root `app` user and receives no socket or
+host bind mount. The backend runs as non-root `app`, is non-privileged, and uses
+`no-new-privileges`, but its socket supplementary group grants the accepted
+host-equivalent Docker authority.
+
+## 7. Lab lifecycle
+
+### Start
 
 ```text
-Level 1
-Concept
-
-Level 2
-Technique / Tool
-
-Level 3
-Command Example
+POST start
+  -> validate numeric mission ID through LAB_REGISTRY
+  -> inspect running services
+  -> docker compose up -d --wait (unless already healthy)
+  -> RUNNING
 ```
 
-Hint利用によるXP減点等はv0.1では実装しない。
+Start is idempotent for an already healthy Lab. The API returns whether it was
+already running.
 
----
+### Status and interaction
 
-# 44. API Design
+`GET status` derives the state from the in-memory operation marker plus Docker's
+actual service and target-health state. A complete, healthy project returns
+`RUNNING` with the target hostname and dynamic internal IP. Partial services,
+unhealthy target, missing network/IP, or Docker errors result in `ERROR`.
 
-Base URL：
+The state vocabulary is `STOPPED`, `STARTING`, `RUNNING`, `STOPPING`, and
+`ERROR`. While running, the player uses the attacker container, submits answers
+through the UI, reveals persisted hints in order, and advances backend-managed
+progress.
+
+### Stop
 
 ```text
-/api/v1
+POST stop -> docker compose stop -> STOPPED
 ```
 
----
+Stop leaves the Lab containers in place and is idempotent when nothing is
+running.
 
-# 45. Mission API
+### Reset
 
 ```text
-GET /api/v1/missions
+POST reset
+  -> docker compose down --volumes
+  -> docker compose up -d --force-recreate --wait
+  -> RUNNING
 ```
 
-Mission一覧。
+Reset recreates only the registered Lab project's containers, network, and Lab
+volumes. It does not erase PostgreSQL learning progress.
+
+## 8. Trust boundaries and accepted risk
 
 ```text
-GET /api/v1/missions/{mission_id}
+Local browser / host
+        |
+        | loopback publication
+        v
+Frontend -> Backend -> PostgreSQL
+               |
+               | ADR-006: host-equivalent authority
+               v
+          Docker socket / Engine
+               |
+               | creates isolated Lab project
+               v
+      Attacker ----internal network----> Target
 ```
 
-Mission詳細。
-
----
-
-# 46. Challenge API
-
-```text
-POST /api/v1/challenges/{challenge_id}/answers
-```
-
-Request：
-
-```json
-{
-  "answer": "80"
-}
-```
-
-Response：
-
-```json
-{
-  "correct": true,
-  "status": "COMPLETED",
-  "next_challenge_id": 3,
-  "mission_status": "IN_PROGRESS"
-}
-```
-
-`status` は回答対象Challengeの更新後状態、`next_challenge_id` は次に
-`AVAILABLE` となるChallengeを表す。全必須Challenge完了時は
-`mission_status` を `COMPLETED` とする。
-
----
-
-# 47. Progress API
-
-```text
-GET /api/v1/progress
-```
-
-Mission / Challenge進捗を返す。
-
-Response例：
-
-```json
-{
-  "missions": [
-    {
-      "mission_id": 1,
-      "status": "IN_PROGRESS",
-      "challenges": [
-        {
-          "challenge_id": 1,
-          "status": "COMPLETED"
-        },
-        {
-          "challenge_id": 2,
-          "status": "AVAILABLE"
-        },
-        {
-          "challenge_id": 3,
-          "status": "LOCKED"
-        }
-      ]
-    }
-  ]
-}
-```
-
-正解時の進捗更新はMission単位のTransactionとして処理し、同時回答でも
-Challengeの順次解放が崩れないようMission行をLockする。
-
----
-
-# 48. Lab API
-
-```text
-POST /api/v1/labs/{mission_code}/start
-
-POST /api/v1/labs/{mission_code}/stop
-
-POST /api/v1/labs/{mission_code}/reset
-
-GET /api/v1/labs/{mission_code}/status
-```
-
----
-
-# 49. Lab Status Response
-
-例：
-
-```json
-{
-  "mission_code": "m01",
-  "status": "RUNNING",
-  "target": {
-    "hostname": "target-m01",
-    "ip": "172.20.0.3"
-  }
-}
-```
-
----
-
-# 50. Health Check
-
-Backend：
-
-```text
-GET /health
-```
-
-Response：
-
-```json
-{
-  "status": "ok"
-}
-```
-
----
-
-# 51. Error Format
-
-API Errorは共通形式とする。
-
-```json
-{
-  "error": {
-    "code": "LAB_START_FAILED",
-    "message": "Failed to start the lab."
-  }
-}
-```
-
-内部CommandやStack TraceをFrontendへそのまま返さない。
-
----
-
-# 52. Logging
-
-Backendは最低限以下を記録する。
-
-```text
-timestamp
-level
-event
-mission_code
-result
-```
-
-例：
-
-```text
-INFO LAB_START mission=m01 result=success
-```
-
-Credentialや秘密情報はLogへ出さない。
-
----
-
-# 53. Security Boundary
-
-最重要Boundary：
-
-```text
-Internet
-    X
-Lab Target
-```
-
-Targetへ外部から直接アクセスできないこと。
-
----
-
-# 54. Backend Exposure
-
-FastAPIは原則、
-
-```text
-127.0.0.1
-```
-
-へBindする。
-
-例：
-
-```text
-127.0.0.1:8000
-```
-
-LANへ公開しない。
-
----
-
-# 55. Frontend Exposure
-
-Next.jsも開発時は、
-
-```text
-localhost
-```
-
-利用を基本とする。
-
-LAN公開はv0.1対象外。
-
----
-
-# 56. CORS
-
-Backendは許可Originを限定する。
-
-例：
-
-```text
-http://localhost:3000
-```
-
-Wildcard：
-
-```text
-*
-```
-
-は使用しない。
-
----
-
-# 57. Secret Management
-
-Repository：
-
-```text
-.env.example
-```
-
-のみCommitする。
-
-以下：
-
-```text
-.env
-```
-
-は`.gitignore`対象とする。
-
-Missionでは実在Credentialを使用しない。
-
----
-
-# 58. Docker Security
-
-Lab Containerでは原則以下を禁止する。
-
-```text
-privileged: true
-
-network_mode: host
-
-/var/run/docker.sock
-
-Host root directory mount
-
-実Credential
-```
-
----
-
-# 59. Resource Limit
-
-Challenge Container暴走対策として、将来的には、
-
-```text
-CPU
-Memory
-PID
-```
-
-制限を設定する。
-
-v0.1でも実装可能な範囲でMemory / CPU制限を導入する。
-
----
-
-# 60. Challenge Directory Design
-
-```text
-challenges/
-
-└── m01-recon/
-    │
-    ├── compose.lab.yml
-    │
-    ├── attacker/
-    │   └── Dockerfile
-    │
-    ├── target/
-    │   ├── Dockerfile
-    │   └── files/
-    │
-    └── README.md
-```
-
-Mission追加時はこの単位で追加する。
-
----
-
-# 61. Repository Structure
-
-最終的なv0.1想定：
-
-```text
-offsec-lab/
-
-├── frontend/
-│
-├── backend/
-│
-├── challenges/
-│   └── m01-recon/
-│
-├── docs/
-│   ├── planning/
-│   ├── requirements/
-│   ├── design/
-│   ├── security/
-│   └── testing/
-│
-├── scripts/
-│   └── enter-lab.sh
-│
-├── tests/
-│
-├── AGENTS.md
-├── README.md
-├── .gitignore
-└── .env.example
-```
-
----
-
-# 62. Mission 01 User Flow
-
-```mermaid
-flowchart TD
-
-A[OffSec Labを開く]
-
-B[Mission一覧]
-
-C[Mission 01]
-
-D[Start Lab]
-
-E[Lab RUNNING]
-
-F[Attacker Containerへ接続]
-
-G[Target IP確認]
-
-H[Host Discovery]
-
-I[Port Scan]
-
-J[Service Enumeration]
-
-K[Version Detection]
-
-L[HTTP Inspection]
-
-M[Challenge回答]
-
-N{全Challenge完了?}
-
-O[Mission Complete]
-
-A --> B
-B --> C
-C --> D
-D --> E
-E --> F
-F --> G
-G --> H
-H --> I
-I --> J
-J --> K
-K --> L
-L --> M
-M --> N
-
-N -- No --> M
-N -- Yes --> O
-```
-
----
-
-# 63. Mission 01 Challenge Definition
-
-## Challenge 01
-
-Host Discovery
-
-目的：
-
-Targetへの到達性を確認する。
-
-主なツール：
-
-```text
-ping
-```
-
----
-
-## Challenge 02
-
-Port Scan
-
-目的：
-
-Attack SurfaceとなるOpen Portを確認する。
-
-主なツール：
-
-```text
-nmap
-```
-
----
-
-## Challenge 03
-
-Service Enumeration
-
-目的：
-
-各Port上のServiceを特定する。
-
-主なツール：
-
-```text
-nmap -sV
-```
-
----
-
-## Challenge 04
-
-Version Detection
-
-目的：
-
-Service Versionを確認する。
-
----
-
-## Challenge 05
-
-HTTP Inspection
-
-目的：
-
-Web Serverの基本情報を調査する。
-
-主なツール：
-
-```text
-curl
-```
-
----
-
-# 64. Mission Complete
-
-全Challenge：
-
-```text
-COMPLETED
-```
-
-になった場合、
-
-Mission：
-
-```text
-COMPLETED
-```
-
-へ更新する。
-
-Frontend：
-
-```text
-MISSION COMPLETE
-```
-
-画面へ遷移する。
-
----
-
-# 65. Reset Behavior
-
-Reset時、
-
-```text
-Lab Container削除
-↓
-Lab Network削除
-↓
-Container再作成
-↓
-Network再作成
-↓
-Health Check
-↓
-RUNNING
-```
-
-Challenge ProgressについてはResetしない。
-
-Lab ResetとLearning Progress Resetは別概念とする。
-
----
-
-# 66. Failure Handling
-
-Docker起動失敗：
-
-```text
-ERROR
-```
-
-とする。
-
-Frontendには、
-
-```text
-Lab could not be started.
-Check Docker and try again.
-```
-
-等を表示する。
-
-内部Command出力はBackend Logへ保存する。
-
----
-
-# 67. Testing Architecture
-
-Testを以下に分類する。
-
-```text
-Unit
-│
-├── Mission Service
-├── Challenge Service
-├── Progress Service
-└── Lab Registry
-
-API
-│
-├── Mission API
-├── Challenge API
-└── Lab API
-
-Integration
-│
-├── Database
-└── Docker Lab
-
-E2E
-│
-└── Mission 01
-```
-
----
-
-# 68. Security Test
-
-最低限以下を確認する。
-
-```text
-Target Host Port非公開
-
-Target Internet非接続
-
-Challenge ContainerへのDocker Socket非Mount
-
-Backend Socket例外がADR-006の制約内
-
-privileged=false
-
-不要Volumeなし
-
-Backend localhost限定
-
-CORS限定
-
-Secret未Commit
-```
-
----
-
-# 69. Development Architecture
-
-実装はIssue単位とする。
-
-```text
-main
- │
- └── feature/issue-XXX
-          │
-          ├── Codex Implementation
-          ├── Test
-          ├── Human Review
-          └── Merge
-```
-
----
-
-# 70. Codex Implementation Policy
-
-CodexはIssue開始前に以下を読む。
-
-```text
-AGENTS.md
-
-docs/requirements/mvp_requirements_v0.1.md
-
-docs/design/basic_design_v0.1.md
-```
-
-必要な範囲のみ変更する。
-
----
-
-# 71. Architecture Decision — ADR候補
-
-重要な設計判断はADRとして残す。
-
-初期ADR：
-
-```text
-ADR-001
-Use WSL-hosted Backend for Docker Control
-
-ADR-002
-Do Not Mount Docker Socket Into Application Containers
-
-ADR-003
-Use Docker Internal Network for Vulnerable Labs
-
-ADR-004
-Use PostgreSQL for MVP
-
-ADR-005
-Use External Terminal Instead of Browser Terminal
-```
-
-保存先候補：
-
-```text
-docs/design/adr/
-```
-
----
-
-# 72. v0.1対象外
-
-以下は本設計の対象外。
-
-```text
-Authentication
-
-Multiple Users
-
-Cloud Deployment
-
-Internet Hosting
-
-Browser Terminal
-
-AI Mentor
-
-XP
-
-Skill Tree
-
-Ranking
-
-SQL Injection Lab
-
-XSS Lab
-
-IDOR Lab
-
-Privilege Escalation
-
-Active Directory
-
-Multiplayer
-```
-
----
-
-# 73. 将来拡張
-
-v0.2以降、
-
-```text
-Mission 02
-Web Enumeration
-
-Mission 03
-SQL Injection
-
-Mission 04
-XSS
-
-Mission 05
-IDOR
-```
-
-等を、
-
-```text
-challenges/
-```
-
-へ追加可能な構造とする。
-
-Platform側の変更量を可能な限り小さくする。
-
----
-
-# 74. MVP完成条件
-
-以下がEnd-to-Endで成立すること。
-
-```text
-OffSec Lab起動
-        ↓
-Mission 01表示
-        ↓
-Mission詳細
-        ↓
-Start Lab
-        ↓
-Docker Lab生成
-        ↓
-Target IP表示
-        ↓
-Attacker接続
-        ↓
-Nmap
-        ↓
-Service Enumeration
-        ↓
-Challenge回答
-        ↓
-Progress保存
-        ↓
-Mission Complete
-        ↓
-Stop / Reset
-```
-
-この状態を、
-
-**OffSec Lab v0.1 Architecture Complete**
-
-および実装開始可能状態とする。
-
----
-
-# 75. 基本設計上の最重要決定
-
-OffSec Lab v0.1では以下をArchitecture Baselineとする。
-
-```text
-Frontend
-Next.js / TypeScript
-
-Backend
-FastAPI / Python
-
-Database
-PostgreSQL
-
-Lab
-Docker / Docker Compose
-
-Execution Environment
-Windows 11 + WSL2
-
-Docker Control
-Containerized Backend → Docker CLI（ADR-006）
-
-Lab Isolation
-Docker internal network
-
-Attacker Access
-docker exec
-
-Target Exposure
-Host Port公開なし
-
-Docker Socket
-Backendのみv0.1例外、Challenge ContainerへMount禁止
-
-Users
-Single User
-
-Terminal
-External Terminal
-
-Deployment
-Local Only
-```
-
-このBaselineを変更する場合は、理由をADRへ記録する。
+Primary trust assumptions:
+
+- the host, WSL2, Docker Desktop, and local user are trusted;
+- the unauthenticated API remains loopback-only and single-user;
+- only fixed registry entries reach the Docker runner;
+- Lab containers are untrusted training workloads and never receive management
+  credentials, host binds, or Docker authority; and
+- no production or Internet deployment uses this v0.1 architecture.
+
+The backend Docker socket is a genuine accepted risk. Non-root execution,
+loopback API exposure, fixed operations, argument-array subprocesses, timeouts,
+sanitized errors, and a read-only repository bind reduce the attack surface but
+do not remove the socket's host authority. LAN/Internet exposure, multi-user
+operation, or broader Docker control requires a new ADR, threat model, and a
+narrow host controller or restricted proxy.
+
+## 9. Testing architecture
+
+The implemented verification layers are:
+
+- backend unit tests for services and runner behavior;
+- API tests for successful, invalid, locked, unknown, and failure paths;
+- a real PostgreSQL migration, seed, repository, and API suite;
+- static Compose and Dockerfile security tests;
+- real Lab integration covering Start, status, attacker-to-target discovery,
+  service enumeration, Reset, progress preservation, Stop, and cleanup;
+- frontend component and real API-client integration tests; and
+- a real Chromium end-to-end Mission 01 flow.
+
+Exact executed commands and results are maintained in the
+[Phase 9 test report](../testing/phase9-test-report.md). Security assessment
+method, dynamic evidence, accepted risk, and residual risks are maintained in
+the [v0.1 Security Assessment](../security/security-assessment-v0.1.md).
+
+## 10. Deferred architecture
+
+v0.1 has no authentication, multi-user authorization, browser terminal, remote
+Lab access, telemetry, cloud deployment, Kubernetes, multiplayer, AI Mentor,
+XP/level/skill-tree system, or additional vulnerability Labs. These are future
+scope and must not inherit ADR-006 or the local unauthenticated trust model
+without explicit architecture and security review.

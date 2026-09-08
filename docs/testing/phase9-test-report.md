@@ -222,9 +222,13 @@ chart structure and conditional formatting extensions are preserved.
 - Docker/host termination that prevents all cleanup code can leave test resources;
   inspect the named E2E backend and `phase9_e2e_*` schema after such an interruption.
   Ordinary test failure/success cleanup is implemented and verified on completed runs.
-- ISSUE-002 remains incomplete under its recorded three-service Compose scope;
-  the frontend currently runs separately. Documentation has remaining historical
-  architecture/API examples to reconcile under ISSUE-028.
+- At the time of the Phase 9 run, ISSUE-002 remained incomplete because the
+  frontend ran separately from the two-service management Compose stack. That
+  historical test condition is unchanged. The gap was subsequently corrected
+  and merged in `c3e9d95`: the root Compose project now builds and starts the
+  frontend, backend, and PostgreSQL, with frontend/backend host bindings limited
+  to loopback and no PostgreSQL host port. This report does not claim that the
+  Phase 9 suite was rerun for the later documentation-only closeout.
 
 ## Acceptance Criteria
 

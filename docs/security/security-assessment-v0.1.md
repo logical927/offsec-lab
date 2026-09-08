@@ -51,6 +51,29 @@ Excluded:
 - Dependency vulnerability, image provenance, host hardening, or a full threat model.
 - Phase 11 documentation cleanup and post-v0.1 features.
 
+### Final management-stack security state (ISSUE-002 closeout)
+
+After this assessment, ISSUE-002 completed the originally required
+three-service development stack by adding the frontend to the root Compose
+project. Review of the merged final configuration confirms that this did not
+change the ISSUE-027 result or the Lab security boundary:
+
+- the frontend is published only as
+  `127.0.0.1:${FRONTEND_PORT:-3000}:3000`;
+- the backend remains published only as
+  `127.0.0.1:${BACKEND_PORT:-8000}:8000`;
+- PostgreSQL still has no host port;
+- the frontend runs as the non-root `app` user, is explicitly non-privileged,
+  and uses `no-new-privileges`;
+- the frontend has no Docker socket, host bind mount, host network, added Linux
+  capability, or membership in the Mission 01 Lab network; and
+- ADR-006 socket access remains limited to the backend.
+
+The frontend relays `/api/v1/*` over the separate Compose `management` network.
+It does not join `offsec-m01-net` and does not create a browser-to-target route.
+These observations are a final configuration delta review, not a rerun or
+replacement of the ISSUE-027 dynamic assessment.
+
 ## 3. Trust Boundaries
 
 ```text
@@ -192,6 +215,12 @@ a host-side controller or restricted proxy.
 Within this stated scope, OffSec Lab v0.1 satisfies the ISSUE-027 security
 acceptance criteria. This conclusion is not a claim that the application, host,
 dependencies, or future architectures are universally or absolutely secure.
+
+The merged ISSUE-002 frontend service preserves the assessed local-only model:
+frontend and backend host exposure is loopback-limited, PostgreSQL remains
+internal to the management network, and no Docker or Lab privilege was granted
+to the frontend. ADR-006 remains an accepted host-equivalent backend risk and
+must not be described as fixed or eliminated.
 
 ## Validation Record
 

@@ -36,6 +36,24 @@ OffSec Labは、Cyber Rangeとしての実用性、Developer Toolとしての操
 OffSec Lab v0.1
 ```
 
+### 1.2.1 ISSUE-028 実装差分
+
+本書はFrontend実装前のUI/UX設計とWireframeを含む。v0.1の実装結果では、
+以下を確定状態とする。以降の将来Mission、XP値、Level構成などのWireframe例は
+視覚設計資料であり、実装済み機能を示さない。
+
+- 実装Routeは `/dashboard`、`/learning-path`、`/progress`、
+  `/missions/{numericMissionId}`、`/missions/{numericMissionId}/lab` とする。
+- Mission 01のHintは4段階ではなく、考え方、技術/Tool、具体的Commandの
+  **3段階**とする。
+- XP、Level、Achievement、複数Learning Path/Missionはv0.1で実装しない。
+  Shell上のXP/LEVEL表示は値を持たないPlaceholderである。
+- Browser Embedded Terminalは実装せず、WSL2から
+  `docker exec -it offsec-m01-attacker bash` を使用する。
+- 実装済み画面・状態・API連携の正式な説明は
+  [`frontend-mvp-flow.md`](../testing/frontend-mvp-flow.md) と
+  [`basic_design_v0.1.md`](../design/basic_design_v0.1.md) を参照する。
+
 ---
 
 ### 1.3 対象範囲
@@ -239,9 +257,9 @@ Frontendでは以下のRoute構成を基本とする。
 
 /learning-path
 
-/missions/m01-recon
+/missions/1
 
-/missions/m01-recon/lab
+/missions/1/lab
 ```
 
 ---
@@ -739,7 +757,7 @@ OPENED
 
 ## 12.1 Hint Level
 
-OffSec LabではHintを以下の4段階とする。
+OffSec Lab v0.1ではHintを以下の3段階とする。
 
 ### Hint Level 1 — Concept
 
@@ -754,13 +772,7 @@ listening on another host.
 
 ---
 
-### Hint Level 2 — Investigation
-
-調査対象を示す。
-
----
-
-### Hint Level 3 — Tool
+### Hint Level 2 — Technique / Tool
 
 使用できるToolを示す。
 
@@ -773,7 +785,7 @@ listening TCP services.
 
 ---
 
-### Hint Level 4 — Command
+### Hint Level 3 — Command
 
 具体的なCommand例を示す。
 
@@ -791,7 +803,6 @@ nmap <target>
 Hint 1   Available
 Hint 2   Locked
 Hint 3   Locked
-Hint 4   Locked
 ```
 
 Hint 1閲覧後：
@@ -800,7 +811,6 @@ Hint 1閲覧後：
 Hint 1   Opened
 Hint 2   Available
 Hint 3   Locked
-Hint 4   Locked
 ```
 
 段階的に解放する。
@@ -1503,7 +1513,6 @@ Lab WorkspaceはOffSec Labにおけるメインゲーム画面とする。
 │                  │ │ Discover the exposed TCP  │ │ ▸ Hint 1         │ │
 │                  │ │ service on the target.    │ │ 🔒 Hint 2         │ │
 │                  │ │                           │ │ 🔒 Hint 3         │ │
-│                  │ │                           │ │ 🔒 Hint 4         │ │
 │                  │ └───────────────────────────┘ └───────────────────┘ │
 │                  │                                                     │
 │                  │ Attacker Environment                                │
@@ -1633,8 +1642,6 @@ Hint 1   Available
 Hint 2   Locked
 
 Hint 3   Locked
-
-Hint 4   Locked
 ```
 
 Hint閲覧後：
@@ -1645,8 +1652,6 @@ Hint 1   Opened
 Hint 2   Available
 
 Hint 3   Locked
-
-Hint 4   Locked
 ```
 
 ---
@@ -1978,7 +1983,8 @@ OffSec Lab v0.1のUI/UX設計では、以下の5原則を最重要とする。
    - 即座に正解を表示せず、段階的なHintで学習を支援する。
 
 5. **Minimal Gamification**
-   - XPやLevelは利用するが、ゲーム演出より実践的なSecurity Learningを優先する。
+   - v0.1ではProgressとMission Completeを実装する。XPやLevelは将来候補とし、
+     ゲーム演出より実践的なSecurity Learningを優先する。
 
 ---
 

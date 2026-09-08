@@ -1,254 +1,235 @@
 # OffSec Lab
 
-## Overview
+OffSec Lab is a local cyber range for learning vulnerability assessment and
+penetration-testing fundamentals through hands-on exercises. It combines a web
+learning platform with intentionally observable targets that run inside isolated
+Docker networks. The project also documents the engineering decisions behind the
+platform so it can be reviewed as a software, infrastructure, and security
+portfolio.
 
-OffSec Lab is a local cybersecurity training platform for learning vulnerability assessment and penetration testing through hands-on exercises in isolated lab environments. Developing the platform also supports learning software engineering, infrastructure, networking, and security.
+OffSec Lab v0.1 is a single-user, local-only MVP. Its goal is one complete
+vertical slice: select Mission 01, start its Lab, investigate the target from an
+attacker container, answer the challenges, review the learning material, and
+stop or reset the Lab.
 
-## Project Status
+> [!WARNING]
+> OffSec Lab intentionally runs services designed for security training. Use it
+> only on a local, isolated development machine. Do not publish the target,
+> connect Lab networks to production systems, use real credentials, or attack
+> anything outside the OffSec Lab resources provided for the exercise.
 
-The Docker Compose development environment starts the frontend, backend, and
-PostgreSQL services. The frontend provides the Dashboard → Learning Path → Mission Briefing →
-Lab Workspace → Challenge → Mission Complete flow, using shared dark-theme
-UI primitives and backend-authoritative progress. The
-backend provides Mission, Challenge Answer, and Progress APIs backed by
-PostgreSQL. Mission 01 has an internal Docker network, a restricted attacker
-container, and an observable SSH/HTTP target for reconnaissance. The backend
-Lab Controller can start, stop, and reset Mission 01 through its allowlisted API.
+## v0.1 scope
 
-The v0.1 MVP is planned for a single local user and one reconnaissance mission.
+The implemented MVP contains:
+
+- a Next.js/TypeScript frontend with Dashboard, Learning Path, Mission Briefing,
+  Lab Workspace, Progress, staged Hints, and Mission Complete views;
+- a FastAPI backend with Mission, Challenge Answer, Progress, and Lab lifecycle
+  APIs;
+- PostgreSQL models and migrations for Mission, Challenge, Hint, and Progress;
+- a server-side Mission registry and Docker Compose Lab Runner for fixed,
+  allowlisted lifecycle operations;
+- Mission 01, a reconnaissance exercise with five sequential challenges;
+- a restricted attacker container with `ping`, `nmap`, and `curl`;
+- an SSH/HTTP target reachable only from the Mission 01 Lab network; and
+- unit, API, database, Docker integration, frontend, browser E2E, reset, and
+  security-assessment evidence.
+
+Authentication, multiple users, multiplayer, XP/levels, skill trees, rankings,
+achievements, AI Mentor, a browser terminal, production or cloud deployment,
+Kubernetes, and additional vulnerability labs such as SQL injection, XSS, IDOR,
+privilege escalation, or Active Directory are not v0.1 features.
 
 ## Architecture
 
-The documented v0.1 architecture uses:
+```text
+Local browser
+    |
+    | 127.0.0.1:${FRONTEND_PORT:-3000}
+    v
+Next.js frontend -------- management network -------- FastAPI backend
+                                                    |            |
+                                                    |            +--> PostgreSQL
+                                                    |
+                                                    +--> Docker socket (ADR-006)
+                                                          |
+                                                          v
+                                                allowlisted Lab Runner
+                                                          |
+                                                          v
+Attacker container --> offsec-m01-net (internal) --> Target container
+                                                      SSH 22 / HTTP 80
+```
 
-- Frontend: Next.js and TypeScript.
-- Backend: Python and FastAPI. Issue 002 runs it in the development Compose stack.
-- Database: PostgreSQL.
-- Labs: Docker and Docker Compose, with dedicated internal lab networks.
-- Lab control: the containerized backend invokes Docker Compose through a Lab Runner using predefined mission configurations.
-- Lab access: an external WSL2 terminal.
+The Compose-managed frontend, backend, and PostgreSQL database share the
+`management` bridge network. The frontend is exposed on host loopback and
+forwards same-origin `/api/v1/*` requests to the backend over that network. The
+backend is also exposed on loopback for local diagnostics. PostgreSQL publishes
+no host port.
 
-See the basic design and accepted ADRs below.
+Mission 01 runs in a separate Lab Plane. Its attacker and target join only the
+dedicated `offsec-m01-net` internal bridge. The target uses `expose` for TCP/22
+and TCP/80 but publishes neither port to the host. The intended training path is
+attacker to target; the normal Docker external gateway is unavailable to both
+Lab containers.
 
-ADR-002 supersedes ADR-001 and establishes the containerized management plane.
-ADR-006 documents a security-sensitive local MVP exception that mounts the
-Docker socket only into the backend. Challenge containers never receive it.
+The backend controls Docker through the Docker CLI and a fixed Mission registry.
+For the local v0.1 MVP, it mounts the Docker socket under the narrowly scoped
+exception in [ADR-006](docs/design/adr/ADR-006-backend-docker-socket-mvp-exception.md).
+This grants host-equivalent authority and remains an accepted risk, not an
+eliminated risk. Attacker and target containers never receive the socket.
 
-## Requirements
+See [Basic design v0.1](docs/design/basic_design_v0.1.md) for components,
+communication paths, lifecycle, networks, data ownership, and trust boundaries.
 
-The planned development environment is Windows 11, WSL2 with Ubuntu, and Docker Desktop. Git is used for version control. Runtime versions and installation instructions: TBD.
+## Prerequisites
 
-## Setup
+The supported development environment is:
 
-Copy `.env.example` to `.env` and replace the development-only PostgreSQL password before starting the stack. Local `.env` files must remain outside Git.
+- Windows 11 with WSL2 and Ubuntu;
+- Docker Desktop with the Linux container engine and Docker Compose plugin; and
+- Git.
 
-In WSL2, set `DOCKER_GID` in `.env` to the numeric group owner reported by
-`stat -c '%g' /var/run/docker.sock`. This lets the non-root backend process use
-the socket without making it world-writable.
+The primary startup workflow is Docker Compose. A host Python, Node.js, or pnpm
+installation is needed only when running the optional host-side development and
+test commands.
+
+## Setup and startup
+
+Clone the repository and run the commands below from its root in WSL2. The
+backend mount expects the WSL Docker socket at `/var/run/docker.sock`.
 
 ```bash
+git clone <repository-url>
+cd "OffSec Lab"
 cp .env.example .env
-docker compose up --build -d
+```
+
+Edit `.env` and replace the placeholder PostgreSQL password with a synthetic,
+local-development value. Do not commit `.env`. Set `DOCKER_GID` to the numeric
+group owner of the Docker socket:
+
+```bash
+stat -c '%g' /var/run/docker.sock
+```
+
+Start and build the frontend, backend, and PostgreSQL services:
+
+```bash
+docker compose up -d --build
+```
+
+Create the database schema and seed Mission 01:
+
+```bash
 docker compose exec backend alembic upgrade head
 docker compose exec backend python -m app.seed
 ```
 
-Open the frontend at <http://localhost:3000>. The home route redirects to the
-Dashboard. The frontend proxies `/api/v1/*` requests to the backend across the
-private Compose management network.
+Open:
 
-Verify FastAPI liveness:
+- Frontend: <http://127.0.0.1:3000>
+- Backend liveness: <http://127.0.0.1:8000/health>
+- Backend readiness: <http://127.0.0.1:8000/ready>
 
-```bash
-curl http://localhost:8000/health
-```
+`FRONTEND_PORT` and `BACKEND_PORT` in `.env` can change the host-side port
+numbers, but the Compose bindings remain limited to `127.0.0.1`. A ready backend
+returns `{"status":"ready","database":"connected"}`. The liveness endpoint can
+remain healthy while readiness reports a disconnected database.
 
-This returns `{"status":"ok"}` whenever the FastAPI process is running and does not
-depend on PostgreSQL. Verify application readiness, including PostgreSQL connectivity:
-
-```bash
-curl http://localhost:8000/ready
-```
-
-A ready stack returns `{"status":"ready","database":"connected"}`. If PostgreSQL
-is unavailable, `/health` remains HTTP 200 while `/ready` returns HTTP 503 with
-`{"status":"not_ready","database":"disconnected"}`. Stop the stack with:
+Stop the management stack without deleting PostgreSQL data:
 
 ```bash
 docker compose down
 ```
 
-Start Mission 01 through the application:
+To remove the local PostgreSQL volume as an explicit destructive cleanup, use
+`docker compose down --volumes`. This erases saved application data and is not
+part of normal shutdown.
 
-```bash
-curl -X POST http://localhost:8000/api/v1/labs/1/start
-```
+## Mission 01: how to play
 
-The response reports `status: "running"` and whether the complete healthy lab
-was already running. Only registered Mission IDs are accepted. The operation
-has a 120-second execution timeout.
+1. Open the frontend and choose **Learning Path**.
+2. Select **Mission 01 — Reconnaissance Fundamentals** and read the briefing.
+3. Open the Lab Workspace and choose **Start Lab**. Wait for `RUNNING` and note
+   the dynamically assigned target IP.
+4. In a separate WSL2 terminal, enter the attacker container:
 
-Temporarily stop Mission 01 without removing its containers:
+   ```bash
+   docker exec -it offsec-m01-attacker bash
+   ```
 
-```bash
-curl -X POST http://localhost:8000/api/v1/labs/1/stop
-```
+5. Investigate only the displayed target or the `target-m01` Docker DNS name.
+   Use the tools and staged hints provided by the mission. Interpret your own
+   observations; this README intentionally omits challenge answers.
+6. Submit each answer in the Lab Workspace. The backend validates answers and
+   unlocks the five challenges in order.
+7. Reveal Hint 1, Hint 2, and Hint 3 as needed. Hints progress from reasoning to
+   technique to a command example.
+8. After all challenges are complete, review the Mission Complete learning
+   explanation.
+9. Choose **Stop Lab** to stop the containers. Choose **Reset Lab** when you want
+   the Lab containers, network, and Lab volumes recreated from the known
+   definition. Reset preserves saved learning progress.
 
-The response reports `status: "stopped"` and whether the lab was already
-stopped. Repeated stop requests are safe. Recreate Mission 01 from its clean
-Compose definition and wait for it to become healthy:
+The browser has no embedded terminal in v0.1. Lab commands run in the external
+WSL2 terminal attached to the attacker container.
 
-```bash
-curl -X POST http://localhost:8000/api/v1/labs/1/reset
-```
+## Development and validation
 
-Reset removes only the registered `offsec-m01` Compose project's containers,
-network, and volumes, then force-recreates and starts that project. It does not
-reset saved learning progress.
+Repository layout:
 
-Inspect the current Mission 01 lab state:
+- `frontend/` — Next.js application, UI components, Vitest, and Playwright E2E;
+- `backend/` — FastAPI application, services, repositories, migrations, and tests;
+- `challenges/m01-recon/` — Mission 01 attacker, target, and isolated Compose file;
+- `tests/` — static Docker-definition and real Lab integration tests;
+- `scripts/` — E2E backend support; and
+- `docs/` — requirements, design, ADRs, testing, security, WBS, and development log.
 
-```bash
-curl http://localhost:8000/api/v1/labs/1/status
-```
+For frontend-only development, copy `frontend/.env.example` to
+`frontend/.env.local`, set `API_BASE_URL` to the local backend origin, and use
+the scripts in `frontend/package.json`. The Compose workflow above remains the
+primary full-stack startup method.
 
-The status is one of `STOPPED`, `STARTING`, `RUNNING`, `STOPPING`, or `ERROR`.
-When the lab is running, the response also includes the Target container's
-hostname and internal lab-network IP address. Docker command failures are
-reported as `ERROR` without exposing command output or host details.
+The final Phase 9 report records the exact environment, commands, scope, and
+results for:
 
-Apply database migrations from the backend container after the stack starts:
+- backend unit and API tests, including the real PostgreSQL suite;
+- Mission 01 Docker integration and reconnaissance;
+- frontend component and API-client integration tests;
+- a real Chromium end-to-end Mission 01 flow; and
+- independent Lab reset validation.
 
-```bash
-docker compose exec backend alembic upgrade head
-```
+See [Phase 9 test report](docs/testing/phase9-test-report.md) rather than relying
+on a duplicated or potentially stale count in this README.
 
-Alembic reads the same `POSTGRES_*` environment variables as the application;
-the configuration does not contain database credentials.
+## Security architecture
 
-The PostgreSQL service is reachable only from the Compose network; it does not publish port 5432 to the host. The frontend and backend are bound to `127.0.0.1` on the host.
+The v0.1 security boundary is intentionally local and narrow:
 
-## Development
+- **Host ports:** frontend and backend bind to loopback; PostgreSQL and Lab
+  targets publish no host ports.
+- **Networks:** the management network is separate from the internal Mission 01
+  Lab network. Attacker and target join only the Lab network.
+- **Privileges:** frontend, backend, attacker, and target run as non-root users.
+  Compose sets the relevant services non-privileged and uses
+  `no-new-privileges`; Lab containers have read-only root filesystems and only
+  the minimum documented capabilities.
+- **Docker socket:** only the backend receives it under ADR-006. It is forbidden
+  for frontend, database, attacker, target, and future challenge containers.
+- **Filesystem:** Lab containers receive no host bind mounts. Their writable
+  `/tmp` locations are bounded `tmpfs` mounts. The backend repository bind is
+  read-only; PostgreSQL uses its named data volume.
+- **Secrets:** `.env` files are ignored, `.env.example` contains placeholders,
+  and Mission credentials/data are synthetic.
+- **Internet:** the target is not directly host- or Internet-exposed. The
+  internal Lab network provides no normal external gateway.
 
-Read [AGENTS.md](AGENTS.md), the MVP requirements, basic design, and relevant ADRs before implementing an issue.
-
-- `frontend/`: Next.js and TypeScript frontend.
-- `backend/`: future backend implementation.
-- `challenges/`: future isolated mission labs.
-- `scripts/`: future development and lab helper scripts.
-- `tests/`: future tests.
-- `docs/`: planning, requirements, design, security, and testing documentation.
-
-Run the backend API tests from `backend/` after installing `requirements-dev.txt`:
-
-```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest
-```
-
-Install and run the frontend from `frontend/` with Node.js and pnpm:
-
-```bash
-cd frontend
-pnpm install
-cp .env.example .env.local
-pnpm dev
-```
-
-The development server is bound to `127.0.0.1:3000`; `/` redirects
-to `/dashboard`. Run each frontend validation command from `frontend/`:
-
-```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-```
-
-Preview a completed production build locally with:
-
-```bash
-pnpm start
-```
-
-Both frontend commands bind to loopback because the frontend now relays Lab
-API requests. Do not expose it to the LAN or Internet.
-
-The browser calls same-origin `/api/v1/*`. Next.js rewrites those requests to
-the server-only `API_BASE_URL` in `frontend/.env.local` (default:
-`http://127.0.0.1:8000`). Set it to your local backend origin, without
-`/api/v1` or a trailing slash. Restart development after changes; rebuild
-production because rewrites are recorded at build time. No CORS change or
-browser-visible secret is needed.
-
-Mission routes use numeric API IDs, for example `/missions/1`. An empty
-database displays an empty state until the initialization commands above run;
-the frontend never seeds content. Mission 01 now provides five challenges,
-three progressive hints each, scenario/learning goals in the description, and
-a learning review in Mission Complete. Difficulty is not exposed by the API.
-
-The authoritative content is `backend/app/mission01.py`. The repeatable seed
-updates Mission ID 1 and its five challenge positions in place, preserving
-existing IDs, slugs, and progress. See [Mission 01](challenges/m01-recon/README.md)
-for the content and verification guide.
-Mission 01 provides three hints per challenge and reveals them in order.
-Missions without hint data display that hints are unavailable.
-Existing XP/LEVEL dashes in the application shell remain unpopulated.
-
-Start, Stop, and Reset are synchronous backend operations. The workspace
-refreshes status afterwards to retrieve the current target. Reset confirms
-discarding lab changes while preserving learning progress. If a request
-times out, refresh status before retrying; stopping the browser request does
-not cancel Docker work already accepted by the backend. Ordinary reads have
-a 30-second timeout, and Lab writes and their proxy have a five-minute limit.
-Transitional states are checked every three seconds for at most 20 checks.
-
-After a correct answer, the UI retrieves progress again. It shows Mission
-Complete only when that response confirms completion. Returning to Dashboard,
-Learning Path, or Progress fetches fresh backend data. Progress is not stored
-in localStorage and Lab Reset does not reset it.
-
-See [frontend flow validation](docs/testing/frontend-mvp-flow.md) for test
-coverage and the isolated browser fixture procedure.
-
-Phase 9 adds reproducible real-Lab integration and Chromium E2E tests.
-See [Phase 9 test report](docs/testing/phase9-test-report.md) for commands,
-test results, isolation/cleanup details, and
-[project status audit](docs/testing/project-status-audit.md) for WBS reconciliation.
-From `frontend/`, install Chromium with `pnpm exec playwright install chromium`,
-then run `pnpm test:e2e` with the management DB/backend image available.
-E2E uses a temporary PostgreSQL schema, loopback ports 3001/8001 and the real
-Mission 01 Lab. Run it separately from Lab integration tests and active play:
-both tests start/stop/reset the singleton Lab and remove its resources afterwards.
-Saved player learning progress is preserved.
-
-Run migrations locally from `backend/` with the same `POSTGRES_*` variables set:
-
-```bash
-alembic upgrade head
-alembic downgrade base
-alembic upgrade head
-```
-
-Validate the Mission 01 network definition from the repository root:
-
-```bash
-docker compose -f challenges/m01-recon/compose.lab.yml config --quiet
-```
-
-Mission 01 uses the dedicated internal bridge network `offsec-m01-net`. The
-attacker service is attached to it; the future target must use the same network
-without publishing host ports.
-
-## Security Notice
-
-OffSec Lab will contain intentionally vulnerable lab environments. Vulnerable targets must not be exposed directly to the Internet. Use the platform only in the isolated local environment defined by the project design.
-
-Lab containers must not receive Docker socket mounts or use privileged mode,
-host networking, or unnecessary host filesystem mounts. The backend-only socket
-exception is documented in ADR-006 and grants host-equivalent Docker authority;
-keep the API bound to localhost. Never commit real credentials or secrets;
-challenge credentials must be synthetic.
+The [v0.1 Security Assessment](docs/security/security-assessment-v0.1.md)
+records SEC-001 through SEC-007 as PASS with zero findings at every severity.
+It also records the Docker socket authority, local unauthenticated API, host
+configuration dependencies, pattern-based secret scanning, and unassessed
+dependency/host-hardening concerns as accepted or residual risks.
 
 ## Documentation
 
@@ -256,9 +237,17 @@ challenge credentials must be synthetic.
 - [MVP requirements v0.1](<docs/requirements/OffSec Lab v0.1 MVP要件定義書.md>)
 - [Basic design v0.1](docs/design/basic_design_v0.1.md)
 - [Architecture decision records](docs/design/adr/)
+- [Mission 01 design and validation](challenges/m01-recon/README.md)
+- [Phase 9 test report](docs/testing/phase9-test-report.md)
+- [Security assessment v0.1](docs/security/security-assessment-v0.1.md)
+- [Development log v0.1](docs/planning/development-log-v0.1.md)
 - [Work breakdown structure](docs/OffSec_Lab_v0.1_WBS.xlsx)
-- [Planning](docs/planning/), [security](docs/security/), and [testing](docs/testing/) directories for future documentation.
 
-The requirements path referenced in AGENTS.md,
-`docs/requirements/mvp_requirements_v0.1.md`, is not present; use the existing
-MVP requirements linked above.
+## Deferred work
+
+The following require later requirements and, where architecture or trust
+boundaries change, new ADRs: additional learning paths and missions; SQL
+injection, XSS, IDOR, privilege-escalation, or Active Directory labs; XP/levels,
+skill trees, rankings, and achievements; AI Mentor; browser terminal; login and
+multi-user operation; multiplayer; cloud or Internet deployment; and
+Kubernetes. They are intentionally absent from v0.1.
