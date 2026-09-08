@@ -1,5 +1,5 @@
-import { PlaceholderPage } from "@/components/layout/PlaceholderPage";
+import { LearningOverview } from "@/components/learning-path/LearningOverview";
 
 export default function ProgressPage() {
-  return <PlaceholderPage title="Progress" description="Frontend foundation ready." />;
+  return <LearningOverview view="progress" />;
 }

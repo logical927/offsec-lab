@@ -1,5 +1,5 @@
-import { PlaceholderPage } from "@/components/layout/PlaceholderPage";
+import { LearningOverview } from "@/components/learning-path/LearningOverview";
 
 export default function LearningPathPage() {
-  return <PlaceholderPage title="Learning Path" description="Frontend foundation ready." />;
+  return <LearningOverview view="path" />;
 }
