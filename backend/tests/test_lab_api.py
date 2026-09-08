@@ -14,6 +14,21 @@ from app.services import LabService
 client = TestClient(app)
 
 
+@pytest.mark.parametrize("mission_id", ["0", "-1", "invalid", "1;whoami"])
+@pytest.mark.parametrize("operation", ["start", "stop", "reset", "status"])
+def test_invalid_lab_id_never_reaches_docker(mission_id, operation):
+    from unittest.mock import Mock
+    service = Mock()
+    app.dependency_overrides[get_lab_service] = lambda: service
+    try:
+        method = client.get if operation == "status" else client.post
+        response = method(f"/api/v1/labs/{mission_id}/{operation}")
+        assert response.status_code == 422
+        assert service.mock_calls == []
+    finally:
+        app.dependency_overrides.pop(get_lab_service, None)
+
+
 class FakeLabRunner:
     def __init__(
         self,

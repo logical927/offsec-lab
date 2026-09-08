@@ -237,3 +237,23 @@ def test_database_failure_rolls_back_progress_changes() -> None:
 
     assert repository.commits == 0
     assert repository.rollbacks == 1
+
+
+@pytest.mark.parametrize("correct", [True, False])
+def test_reanswer_preserves_completion_without_duplicate_rows_or_events(correct, caplog):
+    service, repository = progress_service([
+        progress_row(1, "COMPLETED"),
+        progress_row(2, "COMPLETED"),
+        progress_row(3, "COMPLETED"),
+    ])
+    original_rows = list(repository.rows)
+    with caplog.at_level(logging.INFO):
+        for _ in range(2):
+            result = asyncio.run(service.record_answer(mission(), challenges()[2], correct))
+            assert result.mission_status == MissionProgressStatus.COMPLETED
+            assert result.challenge_status == ChallengeProgressStatus.COMPLETED
+            assert result.next_challenge_id is None
+    assert repository.rows == original_rows
+    assert all(row.status == "COMPLETED" for row in repository.rows)
+    assert "event=CHALLENGE_COMPLETED" not in caplog.text
+    assert "event=MISSION_COMPLETED" not in caplog.text

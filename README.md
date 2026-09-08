@@ -205,6 +205,17 @@ in localStorage and Lab Reset does not reset it.
 See [frontend flow validation](docs/testing/frontend-mvp-flow.md) for test
 coverage and the isolated browser fixture procedure.
 
+Phase 9 adds reproducible real-Lab integration and Chromium E2E tests.
+See [Phase 9 test report](docs/testing/phase9-test-report.md) for commands,
+test results, isolation/cleanup details, and
+[project status audit](docs/testing/project-status-audit.md) for WBS reconciliation.
+From `frontend/`, install Chromium with `pnpm exec playwright install chromium`,
+then run `pnpm test:e2e` with the management DB/backend image available.
+E2E uses a temporary PostgreSQL schema, loopback ports 3001/8001 and the real
+Mission 01 Lab. Run it separately from Lab integration tests and active play:
+both tests start/stop/reset the singleton Lab and remove its resources afterwards.
+Saved player learning progress is preserved.
+
 Run migrations locally from `backend/` with the same `POSTGRES_*` variables set:
 
 ```bash
