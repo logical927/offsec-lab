@@ -13,6 +13,9 @@ node_modules/
 *.tsbuildinfo
 
 coverage/
+frontend/test-results/
+frontend/playwright-report/
+outputs/
 dist/
 build/
 

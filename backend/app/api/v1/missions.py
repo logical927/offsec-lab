@@ -29,6 +29,7 @@ async def get_mission(
     detail = await service.get_mission(mission_id)
     return MissionDetailResponse(
         **MissionSummaryResponse.model_validate(detail.mission).model_dump(),
+        learning_explanation=detail.mission.learning_explanation,
         challenges=[
             ChallengeSummaryResponse.model_validate(challenge)
             for challenge in detail.challenges

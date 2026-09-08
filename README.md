@@ -48,6 +48,8 @@ the socket without making it world-writable.
 ```bash
 cp .env.example .env
 docker compose up --build -d
+docker compose exec backend alembic upgrade head
+docker compose exec backend python -m app.seed
 ```
 
 Verify FastAPI liveness:
@@ -175,9 +177,17 @@ production because rewrites are recorded at build time. No CORS change or
 browser-visible secret is needed.
 
 Mission routes use numeric API IDs, for example `/missions/1`. An empty
-database displays an empty state; the frontend never seeds content. Hints,
-difficulty, and learning goals are not currently exposed by the Mission API.
-The HintPanel is ready for supplied data and currently displays unavailable.
+database displays an empty state until the initialization commands above run;
+the frontend never seeds content. Mission 01 now provides five challenges,
+three progressive hints each, scenario/learning goals in the description, and
+a learning review in Mission Complete. Difficulty is not exposed by the API.
+
+The authoritative content is `backend/app/mission01.py`. The repeatable seed
+updates Mission ID 1 and its five challenge positions in place, preserving
+existing IDs, slugs, and progress. See [Mission 01](challenges/m01-recon/README.md)
+for the content and verification guide.
+Mission 01 provides three hints per challenge and reveals them in order.
+Missions without hint data display that hints are unavailable.
 Existing XP/LEVEL dashes in the application shell remain unpopulated.
 
 Start, Stop, and Reset are synchronous backend operations. The workspace
@@ -195,6 +205,17 @@ in localStorage and Lab Reset does not reset it.
 
 See [frontend flow validation](docs/testing/frontend-mvp-flow.md) for test
 coverage and the isolated browser fixture procedure.
+
+Phase 9 adds reproducible real-Lab integration and Chromium E2E tests.
+See [Phase 9 test report](docs/testing/phase9-test-report.md) for commands,
+test results, isolation/cleanup details, and
+[project status audit](docs/testing/project-status-audit.md) for WBS reconciliation.
+From `frontend/`, install Chromium with `pnpm exec playwright install chromium`,
+then run `pnpm test:e2e` with the management DB/backend image available.
+E2E uses a temporary PostgreSQL schema, loopback ports 3001/8001 and the real
+Mission 01 Lab. Run it separately from Lab integration tests and active play:
+both tests start/stop/reset the singleton Lab and remove its resources afterwards.
+Saved player learning progress is preserved.
 
 Run migrations locally from `backend/` with the same `POSTGRES_*` variables set:
 

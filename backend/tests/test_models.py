@@ -25,7 +25,7 @@ def unique_columns(
 
 
 def test_model_metadata_contains_domain_tables() -> None:
-    assert set(Base.metadata.tables) == {"missions", "challenges", "progress"}
+    assert set(Base.metadata.tables) == {"missions", "challenges", "progress", "hints"}
 
 
 def test_required_and_nullable_columns() -> None:

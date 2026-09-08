@@ -97,8 +97,10 @@ def test_get_mission_returns_ordered_challenge_fields() -> None:
                 "title": "Host Discovery",
                 "description": "Confirm that the target is reachable.",
                 "sort_order": 1,
+                "hints": [],
             }
         ],
+        "learning_explanation": None,
     }
     assert "answer" not in response.text
 

@@ -21,6 +21,7 @@ from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.mission import Mission
+    from app.models.hint import Hint
 
 
 class Challenge(Base):
@@ -59,3 +60,4 @@ class Challenge(Base):
     )
 
     mission: Mapped[Mission] = relationship(back_populates="challenges")
+    hints: Mapped[list[Hint]] = relationship(order_by="Hint.level", passive_deletes=True)
