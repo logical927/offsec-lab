@@ -193,3 +193,12 @@ READY FOR PRODUCT OWNER ACCEPTANCE
 
 This recommendation does not mark ISSUE-029, WBS 12.1, or M8 complete and does
 not constitute Product Owner acceptance.
+
+## 13. Product Owner Acceptance
+
+- Technical recommendation: READY FOR PRODUCT OWNER ACCEPTANCE
+- Product Owner acceptance: Approved
+- Final result: OffSec Lab v0.1 MVP Accepted
+
+This acceptance confirms the approved v0.1 scope. The known limitations,
+ADR-006 Accepted Risk, and deferred scope above remain unchanged.
