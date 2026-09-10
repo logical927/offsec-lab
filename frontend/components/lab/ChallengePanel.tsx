@@ -5,6 +5,7 @@ import { api, type AnswerResult, type MissionDetail, type MissionProgress } from
 import { ChallengeProgress, LoadState } from "@/components/mission/shared";
 import styles from "@/components/mission/mission.module.css";
 import { HintPanel } from "./HintPanel";
+import { Modal } from "@/components/ui/Modal";
 
 export function ChallengePanel({ mission, onProgress }: { mission: MissionDetail; onProgress?: (progress: MissionProgress) => void }) {
   const [progress, setProgress] = useState<MissionProgress>();
@@ -14,6 +15,8 @@ export function ChallengePanel({ mission, onProgress }: { mission: MissionDetail
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const lock = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const focusNext = useRef(false);
@@ -62,6 +65,23 @@ export function ChallengePanel({ mission, onProgress }: { mission: MissionDetail
     catch { if (!signal.aborted) setError("Progress could not be confirmed. Refresh progress to continue."); }
     finally { lock.current = false; if (!signal.aborted) setBusy(false); }
   }
+  async function resetProgress() {
+    if (lock.current) return;
+    const signal = lifetime.current?.signal;
+    if (!signal || signal.aborted) return;
+    lock.current = true; setBusy(true); setError(""); setConfirmed(false); setConfirmReset(false);
+    try {
+      const snapshot = await api.resetProgress(mission.id, signal);
+      if (signal.aborted) return;
+      setProgress(snapshot); setSelected(undefined); setAnswer(""); setResult(undefined);
+      setAttempt(value => value + 1); setConfirmed(true);
+      callback.current?.(snapshot);
+    } catch {
+      if (!signal.aborted) setError("Progress reset could not be confirmed. Refresh progress before trying again.");
+    } finally {
+      lock.current = false; if (!signal.aborted) setBusy(false);
+    }
+  }
   const available = challenges.find(c => progress?.challenges.find(p => p.challenge_id === c.id)?.status === "AVAILABLE");
   const challenge = challenges.find(c => c.id === selected) ?? available ?? challenges[0];
   const status = progress?.challenges.find(p => p.challenge_id === challenge?.id)?.status;
@@ -90,6 +110,12 @@ export function ChallengePanel({ mission, onProgress }: { mission: MissionDetail
     <ChallengeProgress progress={progress} />
     {error && <p role="alert">{error}</p>}
     <Button variant="secondary" disabled={busy} onClick={() => void refreshProgress()}>Refresh Progress</Button>
+    <Button variant="destructive" disabled={busy} onClick={() => setConfirmReset(true)}>Reset Mission Progress</Button>
+    {confirmReset && <Modal title="Reset mission progress?" onClose={() => setConfirmReset(false)}>
+      <p>Erase saved challenge completion for this mission and start again from the first challenge. Lab containers are unchanged.</p>
+      <Button variant="secondary" onClick={() => setConfirmReset(false)}>Cancel</Button>
+      <Button variant="destructive" onClick={() => void resetProgress()}>Confirm Progress Reset</Button>
+    </Modal>}
     {!challenge ? <p>No challenges available yet.</p> : <>
       <p>Challenge {index + 1} of {challenges.length}</p>
       <h3 ref={heading} tabIndex={-1}>{challenge.title}</h3>
@@ -101,7 +127,7 @@ export function ChallengePanel({ mission, onProgress }: { mission: MissionDetail
       </form>
       <div role="status" aria-live="polite">{busy ? "Checking answer or progress…" : result?.correct ? "✓ CORRECT" : result ? "✕ INCORRECT — Review your reconnaissance results and try again." : status === "COMPLETED" ? "Challenge completed." : ""}</div>
       {status === "LOCKED" && <p>Complete the preceding challenge to unlock this one.</p>}
-      {status !== "LOCKED" && <HintPanel key={challenge.id} hints={[...(challenge.hints ?? [])].sort((a,b) => a.level - b.level).map(h => ({ id: String(h.id), content: h.content }))} />}
+      {status !== "LOCKED" && <HintPanel key={`${challenge.id}-${attempt}`} hints={[...(challenge.hints ?? [])].sort((a,b) => a.level - b.level).map(h => ({ id: String(h.id), content: h.content }))} />}
       {confirmed && !busy && status === "COMPLETED" && available && <Button onClick={() => { focusNext.current = true; setSelected(available.id); setAnswer(""); setResult(undefined); }}>Next Challenge</Button>}
     </>}
   </Card>;

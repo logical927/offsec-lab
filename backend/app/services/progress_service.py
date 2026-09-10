@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.models import Challenge, Mission, Progress
+from app.services.mission_service import MissionNotFoundError
 from app.repositories import (
     ChallengeRepository,
     MissionRepository,
@@ -106,6 +107,21 @@ class ProgressService:
         self._mission_repository = mission_repository
         self._challenge_repository = challenge_repository
         self._progress_repository = progress_repository
+
+    async def reset_mission(self, mission_id: int) -> MissionProgressSnapshot:
+        if await self._mission_repository.get_active(mission_id) is None:
+            raise MissionNotFoundError
+        try:
+            # Serialize reset with answer submissions using the same mission lock.
+            await self._progress_repository.lock_mission(mission_id)
+            challenges = await self._challenge_repository.list_active_for_mission(mission_id)
+            await self._progress_repository.delete_for_mission(mission_id)
+            await self._progress_repository.commit()
+        except Exception:
+            await self._progress_repository.rollback()
+            raise
+        logger.info("event=MISSION_PROGRESS_RESET mission_id=%s", mission_id)
+        return build_mission_snapshot(mission_id, challenges, [])
 
     async def list_progress(self) -> Sequence[MissionProgressSnapshot]:
         snapshots: list[MissionProgressSnapshot] = []

@@ -378,3 +378,13 @@ Lab access, telemetry, cloud deployment, Kubernetes, multiplayer, AI Mentor,
 XP/level/skill-tree system, or additional vulnerability Labs. These are future
 scope and must not inherit ADR-006 or the local unauthenticated trust model
 without explicit architecture and security review.
+
+## Mission progress reset
+
+`POST /api/v1/progress/{mission_id}/reset` resets an existing active mission's
+saved progress. The service holds the same mission row lock used by answer
+submission, deletes only that mission's progress, and commits atomically.
+The response reports NOT_STARTED with the first challenge AVAILABLE and the
+remaining challenges LOCKED. Unknown/inactive missions return 404.
+The WebUI provides a separate confirmed Reset Mission Progress action and clears
+its answer, hint, and completion display for replay. Lab lifecycle is unchanged.

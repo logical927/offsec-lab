@@ -11,6 +11,10 @@ import styles from "@/components/mission/mission.module.css";
 export function LabWorkspace({ missionId }: { missionId: number }) {
   const [progress, setProgress] = useState<MissionProgress>();
   const [dismissed, setDismissed] = useState(false);
+  const updateProgress = useCallback((snapshot: MissionProgress) => {
+    setProgress(snapshot);
+    if (snapshot.status !== "COMPLETED") setDismissed(false);
+  }, []);
   const loader = useCallback((signal: AbortSignal) => api.mission(missionId, signal), [missionId]);
   const { data: mission, error, retry } = useResource(loader);
   if (!mission) return <LoadState error={error} retry={retry} />;
@@ -21,7 +25,7 @@ export function LabWorkspace({ missionId }: { missionId: number }) {
       <div className={styles.stack}>
         <Card><h2>Mission Objective</h2><p className={styles.text}>{mission.description ?? "Review the challenges for this mission's objectives."}</p></Card>
         {progress?.status === "COMPLETED" && <Card className={styles.success}><h2>Mission completed</h2><p>Your completion is saved in backend progress.</p><Button variant="secondary" onClick={() => setDismissed(false)}>Review Learning</Button><ActionLink href="/learning-path">Back to Learning Path</ActionLink></Card>}
-        <ChallengePanel key={missionId} mission={mission} onProgress={setProgress} />
+        <ChallengePanel key={missionId} mission={mission} onProgress={updateProgress} />
         <Card><h2>Attacker Environment</h2><p>Open your external WSL2 terminal and connect to the attacker after starting the lab.</p>{mission.id === 1 && <code className="technical-value">docker exec -it offsec-m01-attacker bash</code>}<p>Desktop environment recommended for lab exercises.</p></Card>
         <SecurityNotice />
       </div>

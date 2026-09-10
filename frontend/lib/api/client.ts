@@ -37,6 +37,7 @@ export const api = {
   missions: (signal?: AbortSignal) => request<Mission[]>("/missions", signal),
   mission: (id: number, signal?: AbortSignal) => request<MissionDetail>(`/missions/${id}`, signal),
   progress: (signal?: AbortSignal) => request<Progress>("/progress", signal),
+  resetProgress: (id: number, signal?: AbortSignal) => request<MissionProgress>(`/progress/${id}/reset`, signal, {}),
   labStatus: (id: number, signal?: AbortSignal) => request<LabStatus>(`/labs/${id}/status`, signal),
   labAction: (id: number, action: "start" | "stop" | "reset", signal?: AbortSignal) => request<{ mission_id: number; status: "running" | "stopped" }>(`/labs/${id}/${action}`, signal, {}),
   answer: (id: number, answer: string, signal?: AbortSignal) => request<AnswerResult>(`/challenges/${id}/answers`, signal, { answer }),

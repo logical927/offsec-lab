@@ -251,3 +251,11 @@ injection, XSS, IDOR, privilege-escalation, or Active Directory labs; XP/levels,
 skill trees, rankings, and achievements; AI Mentor; browser terminal; login and
 multi-user operation; multiplayer; cloud or Internet deployment; and
 Kubernetes. They are intentionally absent from v0.1.
+
+### Restart a mission for practice or a demo
+
+In Lab Workspace, close the Mission Complete dialog with **Return to Workspace**,
+then choose **Reset Mission Progress** and **Confirm Progress Reset**. This erases
+only that mission's saved challenge completion and unlocks its first challenge.
+Lab containers keep running. **Reset Lab** still resets only the containers;
+**Refresh Progress** reloads saved progress without erasing it.
