@@ -44,3 +44,24 @@ it("shows backend learning content on completion and reopens it from the workspa
   fireEvent.click(screen.getByRole("button", { name: "Review Learning" }));
   expect(screen.getByText("Observation is evidence for later analysis.")).toBeVisible();
 });
+
+it("resets completed mission only after confirmation and allows replay", async () => {
+  vi.mocked(api.progress).mockResolvedValue({ missions: [{ mission_id: 1, status: "COMPLETED", challenges: [{ challenge_id: 10, status: "COMPLETED" }] }] });
+  api.resetProgress = vi.fn().mockResolvedValue({ mission_id: 1, status: "NOT_STARTED", challenges: [{ challenge_id: 10, status: "AVAILABLE" }] });
+  render(<LabWorkspace missionId={1} />);
+  await screen.findByRole("dialog", { name: "Mission Complete" });
+  fireEvent.click(screen.getByRole("button", { name: "Return to Workspace" }));
+  fireEvent.click(screen.getByRole("button", { name: "Reset Mission Progress" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(api.resetProgress).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Reset Mission Progress" }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm Progress Reset" }));
+  await waitFor(() => expect(screen.getByRole("textbox")).toBeEnabled());
+  expect(api.resetProgress).toHaveBeenCalledWith(1, expect.any(AbortSignal));
+  expect(screen.queryByText("Mission completed")).not.toBeInTheDocument();
+  expect(screen.getByRole("textbox")).toHaveValue("");
+  vi.mocked(api.progress).mockResolvedValue({ missions: [{ mission_id: 1, status: "COMPLETED", challenges: [{ challenge_id: 10, status: "COMPLETED" }] }] });
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "fixture finding" } });
+  fireEvent.click(screen.getByRole("button", { name: "Submit Answer" }));
+  expect(await screen.findByRole("dialog", { name: "Mission Complete" })).toBeVisible();
+});

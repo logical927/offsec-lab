@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Mission, Progress
@@ -17,6 +17,11 @@ class ProgressRepository:
 
     def add_all(self, progress_rows: Sequence[Progress]) -> None:
         self._session.add_all(progress_rows)
+
+    async def delete_for_mission(self, mission_id: int) -> None:
+        await self._session.execute(
+            delete(Progress).where(Progress.mission_id == mission_id)
+        )
 
     async def flush(self) -> None:
         await self._session.flush()
